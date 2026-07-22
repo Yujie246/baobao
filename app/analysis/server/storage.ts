@@ -3,6 +3,7 @@ import { get, put } from "@vercel/blob";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { AnalysisJobStatus, AnalysisResult, AnalysisBabyProfile, VideoFactPackage } from "../schemas";
+import { runtimeTempRoot } from "./runtime-paths";
 
 export interface VideoSource {
   kind: "local" | "blob" | "remote" | "mock";
@@ -20,7 +21,7 @@ export interface AnalysisJobRecord extends AnalysisJobStatus {
   result?: AnalysisResult;
 }
 
-const root = path.join(process.cwd(), "tmp", "analysis-jobs");
+const root = path.join(runtimeTempRoot, "analysis-jobs");
 const hasBlob = () => Boolean(process.env.BLOB_READ_WRITE_TOKEN);
 const jobPath = (jobId: string) => `analysis-jobs/${jobId}/job.json`;
 const localJobPath = (jobId: string) => path.join(root, jobId, "job.json");

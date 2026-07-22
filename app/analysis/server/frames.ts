@@ -6,6 +6,7 @@ import path from "node:path";
 import type { AnalysisResult } from "../schemas";
 import { materializeVideo, saveFrame, type VideoSource } from "./storage";
 import { timestampToSeconds } from "../json";
+import { runtimeTempRoot } from "./runtime-paths";
 
 const execFileAsync = promisify(execFile);
 const ffmpegBinary = process.env.FFMPEG_PATH || path.join(process.cwd(), "node_modules", "ffmpeg-static", "ffmpeg");
@@ -13,7 +14,7 @@ const ffmpegBinary = process.env.FFMPEG_PATH || path.join(process.cwd(), "node_m
 export async function extractFrames(jobId: string, video: VideoSource, result: AnalysisResult) {
   const binary = ffmpegBinary;
   const input = await materializeVideo(jobId, video);
-  const outputDir = path.join(process.cwd(), "tmp", "analysis-jobs", jobId, "frame-work");
+  const outputDir = path.join(runtimeTempRoot, "analysis-jobs", jobId, "frame-work");
   await mkdir(outputDir, { recursive: true });
   const steps = await Promise.all(result.陪做步骤.map(async (step) => {
     const seconds = timestampToSeconds(step.keyframe_time);

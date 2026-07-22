@@ -2,6 +2,7 @@ import "server-only";
 import { appendFile, mkdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { VideoSource } from "./storage";
+import { runtimeTempRoot } from "./runtime-paths";
 
 export const LOCAL_UPLOAD_CHUNK_BYTES = 2 * 1024 * 1024;
 export const MAX_LOCAL_VIDEO_BYTES = 200 * 1024 * 1024;
@@ -16,7 +17,7 @@ interface LocalUploadMeta {
   completed: boolean;
 }
 
-const uploadRoot = path.join(process.cwd(), "tmp", "local-uploads");
+const uploadRoot = path.join(runtimeTempRoot, "local-uploads");
 const uploadIdPattern = /^[0-9a-f-]{36}$/i;
 
 function assertUploadId(uploadId: string) {
@@ -108,7 +109,7 @@ export async function completeLocalUpload(uploadId: string) {
 export async function claimLocalUpload(jobId: string, uploadId: string): Promise<VideoSource> {
   const meta = await readMeta(uploadId);
   if (!meta.completed) throw new Error("视频尚未上传完成");
-  const jobDir = path.join(process.cwd(), "tmp", "analysis-jobs", jobId);
+  const jobDir = path.join(runtimeTempRoot, "analysis-jobs", jobId);
   await mkdir(jobDir, { recursive: true });
   const target = path.join(jobDir, meta.name);
   try {
