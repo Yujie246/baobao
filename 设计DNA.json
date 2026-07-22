@@ -1,0 +1,374 @@
+{
+  "meta": {
+    "name": "宝宝饱饱治愈系移动端",
+    "description": "从参考图提取并去除角色形象后的设计基线：暖黄与柔粉的低饱和配色、奶油白留白、大圆角卡片、轻量动效和低压力交互。",
+    "source_references": [
+      "codex-clipboard-36226bdd-d1dc-4642-9d0e-2b5b3dbd4017.png",
+      "codex-clipboard-5075a448-86bc-47c6-9ce7-c99a5f03a679.png",
+      "codex-clipboard-6f196a4c-221d-41b2-ae54-7ec528389bc2.png"
+    ],
+    "created_at": "2026-07-22"
+  },
+  "design_system": {
+    "color": {
+      "palette_type": "analogous warm palette with restrained cool semantic accents",
+      "primary": {
+        "hex": "#FFD35A",
+        "role": "主按钮、当前进度、选中态和关键行动"
+      },
+      "secondary": {
+        "hex": "#FFA691",
+        "role": "情绪背景、引导区和次级高亮"
+      },
+      "accent": {
+        "hex": "#DF7660",
+        "role": "小面积强调、录音状态和重要但非危险的提醒"
+      },
+      "neutral": {
+        "scale": {
+          "0": "#FFFFFF",
+          "50": "#FFFDF9",
+          "100": "#F8F4EC",
+          "200": "#EEE7DC",
+          "300": "#DCD3C7",
+          "500": "#958C85",
+          "700": "#665E58",
+          "900": "#37312E"
+        },
+        "usage": "奶油白承载大面积背景，深棕灰承载正文，浅暖灰用于描边、分隔和禁用态"
+      },
+      "semantic": {
+        "success": "#6F9C82",
+        "warning": "#C9973E",
+        "error": "#C96F6B",
+        "info": "#7195B5"
+      },
+      "surface": {
+        "background": "#F8F4EC",
+        "card": "#FFFDF9",
+        "elevated": "#FFFFFF"
+      },
+      "contrast_strategy": "dark warm text on light cream surfaces; saturated colors are reserved for actions and never used as long-form text backgrounds"
+    },
+    "typography": {
+      "type_scale": {
+        "display": {
+          "size": 32,
+          "weight": 700,
+          "line_height": 40,
+          "tracking": -0.4
+        },
+        "heading_1": {
+          "size": 26,
+          "weight": 700,
+          "line_height": 34,
+          "tracking": -0.2
+        },
+        "heading_2": {
+          "size": 22,
+          "weight": 700,
+          "line_height": 30,
+          "tracking": 0
+        },
+        "heading_3": {
+          "size": 18,
+          "weight": 600,
+          "line_height": 26,
+          "tracking": 0
+        },
+        "body": {
+          "size": 16,
+          "weight": 400,
+          "line_height": 25,
+          "tracking": 0
+        },
+        "body_small": {
+          "size": 14,
+          "weight": 400,
+          "line_height": 22,
+          "tracking": 0
+        },
+        "caption": {
+          "size": 12,
+          "weight": 400,
+          "line_height": 18,
+          "tracking": 0.1
+        },
+        "overline": {
+          "size": 12,
+          "weight": 600,
+          "line_height": 18,
+          "tracking": 1.2
+        }
+      },
+      "font_families": {
+        "heading": "PingFang SC, Noto Sans SC, system-ui, sans-serif",
+        "body": "PingFang SC, Noto Sans SC, system-ui, sans-serif",
+        "mono": "SFMono-Regular, Menlo, monospace"
+      },
+      "font_style_notes": "使用圆润但克制的系统无衬线字体；标题通过字重而非花体建立亲和力，避免卡通字体损害信息可信度"
+    },
+    "spacing": {
+      "base_unit": 4,
+      "scale": [4, 8, 12, 16, 20, 24, 32, 40, 48, 64],
+      "content_density": "compact but calm; one focal task per screen",
+      "section_rhythm": "普通页主要区块间 16 至 20；菜谱结果页卡内 8 至 12、区块间 10 至 14"
+    },
+    "layout": {
+      "grid_system": "mobile-first single column with 4-point grid",
+      "max_content_width": 430,
+      "columns": 1,
+      "gutter": 20,
+      "breakpoints": {
+        "compact": 360,
+        "standard": 390,
+        "large": 430,
+        "tablet": 768
+      },
+      "alignment_tendency": "正文左对齐，空状态和单一引导居中，底部主行动固定"
+    },
+    "shape": {
+      "border_radius": {
+        "small": 12,
+        "medium": 17,
+        "large": 22,
+        "pill": 999
+      },
+      "border_usage": "1px 暖灰细描边用于卡片、输入框和未选中控件；主按钮通常无描边",
+      "divider_style": "优先使用留白分组；必要时使用 #F1E9DD 的 1px 分隔线"
+    },
+    "elevation": {
+      "shadow_style": "almost flat; low-opacity warm shadow only for the current primary task",
+      "levels": {
+        "low": "0 4 14 rgba(90, 66, 48, 0.06)",
+        "medium": "0 10 28 rgba(90, 66, 48, 0.10)",
+        "high": "0 18 44 rgba(90, 66, 48, 0.14)"
+      },
+      "depth_cues": "主要依赖表面色差、圆角和留白；普通卡片无阴影，阴影只用于浮层和当前主任务"
+    },
+    "iconography": {
+      "style": "rounded outline",
+      "stroke_weight": 1.8,
+      "size_scale": [16, 20, 24, 28],
+      "preferred_set": "Lucide React with a small project-specific SVG set"
+    },
+    "motion": {
+      "easing": "cubic-bezier(0.22, 1, 0.36, 1)",
+      "duration_scale": {
+        "micro": 140,
+        "normal": 240,
+        "macro": 420
+      },
+      "entrance_pattern": "8px upward fade or gentle scale from 0.98 to 1",
+      "exit_pattern": "short opacity fade without large displacement",
+      "philosophy": "动效用于确认、连接状态和降低焦虑，不用于持续吸引注意；完整支持 reduced motion"
+    },
+    "components": {
+      "button_style": "46px 高的大圆角主按钮，暖黄实底深色文字；一屏最多一个主按钮",
+      "input_style": "43 至 46px 高、12 至 14px 圆角、浅色表面、柔和聚焦描边",
+      "card_style": "14 至 22px 圆角的奶油白卡片；普通卡片不使用阴影，每张卡最多保留标题和一行状态",
+      "navigation_pattern": "底部四项以内原生 Tab；步骤流程使用顶部进度和固定底部主行动",
+      "modal_style": "底部抽屉优先，白色表面、28px 顶部圆角、柔和遮罩；高风险确认使用居中对话框",
+      "list_style": "菜谱结果使用单卡连续列表，行高 38 至 48px，轻分隔线和点线对齐数量；其他任务列表保持 12 至 16px 间距",
+      "component_notes": "不用角色形象；通过色块、状态胶囊、图标和微动效表达治愈感。首页只设一个高视觉重量的暖白主任务卡，两个次入口统一使用更紧凑的横向卡片，禁止三个入口同权。长菜谱页优先保障扫读效率，不以大留白制造氛围。固定操作区采用两个并列工具行动加一个全宽主行动；分享卡片延续暖黄页眉、柔粉结论块和奶油白信息面。用餐反馈使用单页分组选择卡，暖黄表示已选，风险项仅在选中时切换为语义红"
+    }
+  },
+  "design_style": {
+    "aesthetic": {
+      "mood": "温暖、安定、被照顾、低压力",
+      "visual_metaphor": "柔软食物、晨光和被轻轻托住的卡片",
+      "era_influence": "contemporary soft mobile illustration systems without the character layer",
+      "genre": "healing lifestyle utility",
+      "personality_traits": ["亲切", "耐心", "可信", "克制", "清楚"],
+      "adjectives": ["低饱和", "柔软", "明亮", "温暖", "轻盈"]
+    },
+    "visual_language": {
+      "complexity": "low to medium",
+      "ornamentation": "restrained abstract blobs, dots and soft color fields only",
+      "whitespace_usage": "generous; empty space is used to lower cognitive load",
+      "visual_weight_distribution": "the current decision or task owns most visual weight; secondary information is grouped into quiet cards",
+      "focal_strategy": "one dominant action or conclusion per screen",
+      "contrast_level": "soft chromatic contrast with strong text readability",
+      "texture_usage": "flat matte surfaces; no grain required in v1"
+    },
+    "composition": {
+      "hierarchy_method": "scale, spacing, surface blocks and semantic color",
+      "balance_type": "mostly centered for onboarding and asymmetric left-aligned for task screens",
+      "flow_direction": "top-to-bottom linear flow",
+      "grouping_strategy": "rounded cards with one purpose each",
+      "negative_space_role": "creates calm and separates decisions without extra borders"
+    },
+    "imagery": {
+      "photo_treatment": "warm natural food photography with moderate saturation and no heavy filter",
+      "illustration_style": "no character or mascot in the current phase; only simple line icons and abstract food-like geometry",
+      "graphic_elements": "soft circles, rounded organic color fields, small sparkles used sparingly",
+      "pattern_usage": "none by default",
+      "image_shape": "large 20 to 28px rounded rectangles or edge-to-edge hero with rounded lower corners"
+    },
+    "interaction_feel": {
+      "feedback_style": "gentle scale, color fill and light haptic confirmation",
+      "hover_behavior": "not primary on mobile; web fallback uses subtle surface darkening",
+      "transition_personality": "calm, continuous and non-bouncy",
+      "loading_style": "real stage labels with a softly moving progress highlight; never fake precise percentages",
+      "microinteraction_density": "low to medium"
+    },
+    "brand_voice_in_ui": {
+      "tone": "像一位耐心、可靠的陪做伙伴，直接说明下一步和原因",
+      "formality": "conversational but not childish",
+      "cta_style": "verb-first and outcome-specific, such as 按宝宝版本开始做",
+      "empty_state_approach": "用一句清楚说明加一个可执行入口，不依赖角色插画",
+      "error_tone": "不责备、不卖萌；说明发生了什么、影响是什么、现在可以怎么做"
+    }
+  },
+  "visual_effects": {
+    "overview": {
+      "effect_intensity": "low",
+      "performance_tier": "lightweight",
+      "fallback_strategy": "所有效果都可退化为静态色块和 opacity 变化，并尊重系统 reduced motion",
+      "primary_technology": "CSS transitions, Motion for React and inline SVG"
+    },
+    "background_effects": {
+      "type": "static soft organic color fields",
+      "description": "在 onboarding 和空状态使用一至两个低饱和暖黄或柔粉色块，不持续运动",
+      "technology": "CSS gradients and inline SVG",
+      "params": {
+        "color_palette": ["#F4C95D", "#F3ADA0", "#FBF6ED"],
+        "speed": 0,
+        "density": "very low",
+        "opacity": 0.45,
+        "blend_mode": "normal"
+      }
+    },
+    "particle_systems": {
+      "enabled": false,
+      "type": "none",
+      "description": "当前阶段不使用粒子，避免干扰厨房任务和增加实现成本",
+      "technology": "none",
+      "params": {
+        "count": 0,
+        "shape": "none",
+        "size_range": [0, 0],
+        "movement_pattern": "none",
+        "color_behavior": "none",
+        "interaction": "none",
+        "spawn_area": "none"
+      }
+    },
+    "3d_elements": {
+      "enabled": false,
+      "type": "none",
+      "description": "不使用 3D",
+      "technology": "none",
+      "params": {
+        "renderer": "none",
+        "lighting": "none",
+        "camera": "none",
+        "materials": "none",
+        "geometry": "none",
+        "post_processing": "none",
+        "interaction_model": "none"
+      }
+    },
+    "shader_effects": {
+      "enabled": false,
+      "type": "none",
+      "description": "不使用 shader",
+      "technology": "none",
+      "params": {
+        "uniforms": {},
+        "vertex_manipulation": "none",
+        "fragment_output": "none",
+        "noise_type": "none",
+        "distortion": "none"
+      }
+    },
+    "scroll_effects": {
+      "parallax": {
+        "enabled": false,
+        "layers": 0,
+        "depth_range": [0, 0],
+        "speed_curve": "none"
+      },
+      "scroll_triggered_animations": {
+        "enabled": true,
+        "trigger_points": [0, 56],
+        "animation_type": "large title fades while compact topbar title appears",
+        "scrub_behavior": "directly linked to scroll progress and clamped between 0 and 1"
+      },
+      "scroll_morphing": {
+        "enabled": true,
+        "description": "仅在带大标题的列表和详情页联动标题层级；正文卡片尺寸和位置保持稳定"
+      }
+    },
+    "text_effects": {
+      "type": "simple opacity and color transition",
+      "description": "仅对状态变化和步骤切换做轻量淡入",
+      "technology": "CSS transitions or Motion for React",
+      "params": {
+        "split_strategy": "none",
+        "animation_per_unit": "whole block",
+        "stagger": 35,
+        "effect_style": "fade"
+      }
+    },
+    "cursor_effects": {
+      "enabled": false,
+      "type": "none",
+      "description": "移动端不使用自定义光标",
+      "params": {
+        "shape": "system",
+        "size": 0,
+        "blend_mode": "normal",
+        "trail": false,
+        "interaction_zone": "none"
+      }
+    },
+    "image_effects": {
+      "type": "soft fade reveal",
+      "description": "食物图片加载完成后淡入，失败时显示中性占位卡",
+      "technology": "native img loading and CSS or Motion for React",
+      "params": {
+        "filter_pipeline": "none",
+        "hover_transform": "none",
+        "reveal_animation": "opacity 0 to 1 in 240ms",
+        "distortion_type": "none"
+      }
+    },
+    "glassmorphism_neumorphism": {
+      "enabled": false,
+      "style": "none",
+      "params": {
+        "blur_radius": 0,
+        "transparency": 1,
+        "border_treatment": "solid warm gray",
+        "shadow_type": "soft conventional shadow",
+        "light_source_angle": 0
+      }
+    },
+    "canvas_drawings": {
+      "enabled": false,
+      "type": "none",
+      "description": "当前阶段不使用 Canvas 绘制",
+      "technology": "none",
+      "params": {
+        "draw_method": "none",
+        "animation_loop": false,
+        "color_scheme": [],
+        "responsiveness": "not applicable",
+        "interaction": "none"
+      }
+    },
+    "svg_animations": {
+      "enabled": true,
+      "type": "progress and status transitions",
+      "description": "仅用于进度环、计时和完成勾选的轻量路径动画",
+      "params": {
+        "animation_method": "strokeDashoffset driven by Motion for React or CSS",
+        "path_morphing": false,
+        "stroke_animation": true,
+        "filter_effects": false
+      }
+    },
+    "composite_notes": "参考图中的角色插画、冥想星球意象和品牌化形象全部排除；保留暖色、留白、卡片节奏和柔和反馈。禁止引入 WebGL、粒子或持续背景动画，以保证厨房场景中的注意力和低端设备性能。"
+  }
+}
