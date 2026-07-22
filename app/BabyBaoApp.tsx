@@ -529,8 +529,6 @@ function HomePage() {
   };
   const hasCookingSession = cookPrepared || completedSteps.length > 0 || cookConversation.length > 0 || riskInterrupted;
   const pendingObservation = history.find((item) => item.progress === "completed" && item.feedback && !item.feedback.observed);
-  const completedMeals = history.filter((item) => item.progress === "completed").length;
-  const observedMeals = history.filter((item) => item.feedback?.observed).length;
   const inspirationIdeas = Array.from({ length: 3 }, (_, index) => homeInspirationIdeas[(ideaOffset + index) % homeInspirationIdeas.length]);
   const hasNextTask = hasCookingSession || Boolean(pendingObservation);
   const openNextTask = () => {
@@ -569,7 +567,6 @@ function HomePage() {
         <button className="home-dashboard-card plan" onClick={() => navigate("/plan/week")}><span className="home-dashboard-icon"><CalendarDays size={19} /></span><small>本周辅食计划</small><strong>已安排 {weeklyMeals.length} 天</strong><p>今天：南瓜鸡肉软饭</p><em>查看计划 <ChevronRight size={12} /></em></button>
         <button className="home-dashboard-card food-map" onClick={() => navigate("/food-map")}><span className="home-dashboard-icon"><Map size={19} /></span><small>食物探索地图</small><strong>已记录 {profile.triedFoods.length} 种</strong><p>继续积累真实尝试</p><em>继续探索 <ChevronRight size={12} /></em></button>
       </section>
-      <section className="home-progress-section"><div className="home-section-heading"><div><span>成长记录</span><h2>{profile.name}最近的小进步</h2></div></div><div className="home-progress-track"><div><span><UtensilsCrossed size={16} /></span><strong>{completedMeals}</strong><small>完成制作</small></div><i /><div><span><ShoppingBasket size={16} /></span><strong>{profile.triedFoods.length}</strong><small>已记录食材</small></div><i /><div><span><CheckCircle2 size={16} /></span><strong>{observedMeals}</strong><small>完成观察</small></div></div>{completedMeals === 0 && <p className="home-progress-empty">还没有制作记录，从第一顿开始积累吧。</p>}</section>
       {!hasNextTask && <section className="home-calm-note"><CharacterIllustration intent="neutral" size="avatar" animate={false} /><div><strong>今天没有待处理任务</strong><p>小鸡仔可以休息一下，或者从一条辅食内容开始。</p></div></section>}
     </Screen>
   );
