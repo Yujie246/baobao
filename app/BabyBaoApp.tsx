@@ -619,7 +619,7 @@ function HomePage() {
         </form>
       </section>
       <section className="home-inspiration-section">
-        <div className="home-section-heading"><div><span>灵感示例</span><h2>今日辅食灵感</h2><p>当前为参考内容，加入前仍需结合档案确认</p></div><button onClick={() => setIdeaOffset((current) => (current + 1) % homeInspirationIdeas.length)}>换一换</button></div>
+        <div className="home-section-heading"><div><h2>今日辅食灵感</h2></div><button onClick={() => setIdeaOffset((current) => (current + 1) % homeInspirationIdeas.length)}>换一换</button></div>
         <div className="home-inspiration-track">
           {inspirationIdeas.map((idea) => <article className="home-idea-card" key={idea.id}><div className="home-idea-visual"><FoodIllustration foodId={idea.foodId} alt="" /></div><span>{idea.time}</span><h3>{idea.title}</h3><p>{idea.note}</p><button onClick={() => navigate("/plan")}>加入计划<ChevronRight size={13} /></button></article>)}
         </div>
