@@ -1,0 +1,16 @@
+.git
+.github
+.next
+.vinext
+.npm-cache
+node_modules
+dist
+tmp
+work
+outputs
+uploads
+generated-frames
+.wrangler
+assets-source
+.env*
+!.env.example

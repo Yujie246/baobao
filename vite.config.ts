@@ -56,9 +56,17 @@ export default defineConfig(async ({ command }) => {
       // instead of Vite's ESM module runner during local development.
       external: ["@vercel/blob", "@vercel/cli-config", "xdg-app-paths"],
     },
-    server: isCodexSeatbeltSandbox
-      ? { watch: { useFsEvents: false, usePolling: true } }
-      : undefined,
+    server: {
+      // Vite 8 auto-enables browser-console forwarding in agent environments.
+      // Its client registers the forwarder before the HMR WebSocket finishes
+      // connecting, so an early browser error recursively becomes
+      // "send was called before connect". Browser DevTools and HMR still work
+      // with this terminal-only forwarding channel disabled.
+      forwardConsole: false,
+      ...(isCodexSeatbeltSandbox
+        ? { watch: { useFsEvents: false, usePolling: true } }
+        : {}),
+    },
     plugins: [
       vinext(),
       sites(),
