@@ -26,14 +26,14 @@ test("首页能由生产 Worker 正常渲染", async () => {
 });
 
 test("浏览器直接刷新深层路由不会返回 404", async () => {
-  for (const path of ["/home", "/plan", "/plan/week", "/food-map", "/food-map/shrimp", "/result/adapted", "/cook/shrimp-noodle-demo/session", "/cook/shrimp-noodle-demo/step/3", "/baby/foods"]) {
+  for (const path of ["/home", "/agent", "/plan", "/plan/week", "/food-map", "/food-map/shrimp", "/result/adapted", "/cook/shrimp-noodle-demo/session", "/cook/shrimp-noodle-demo/step/3", "/baby/foods"]) {
     const response = await render(path);
     assert.equal(response.status, 200, path);
   }
 });
 
 test("实现包含完整页面闭环和统一 Mock 边界", async () => {
-  const [app, gateway, fixtures, tts, ttsRoute, importValidation, homeCharacter, homeCharacterJson] = await Promise.all([
+  const [app, gateway, fixtures, tts, ttsRoute, importValidation, homeCharacter, homeCharacterJson, agentRoute, agentClient] = await Promise.all([
     readFile(new URL("../app/BabyBaoApp.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/ai-gateway.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/mock-data.ts", import.meta.url), "utf8"),
@@ -42,13 +42,15 @@ test("实现包含完整页面闭环和统一 Mock 边界", async () => {
     readFile(new URL("../app/import-validation.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/home-character-animation.tsx", import.meta.url), "utf8"),
     readFile(new URL("../public/illustrations/ip/v2/home-chick.json", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/agent-chat/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/agent/client.ts", import.meta.url), "utf8"),
   ]);
   const homeCharacterAnimation = JSON.parse(homeCharacterJson);
   for (const route of [
     "/onboarding/age", "/onboarding/avoid", "/onboarding/stage", "/analysis/:id",
     "/plan", "/plan/week", "/food-map", "/food-map/:food",
     "/result/:conclusion", "/cook/:id/session", "/cook/:id/prep", "/cook/:id/step/:step",
-    "/feedback/:id/now", "/feedback/:id/now/:part", "/feedback/:id/later", "/history", "/baby", "/settings",
+    "/feedback/:id/now", "/feedback/:id/now/:part", "/feedback/:id/later", "/history", "/baby", "/agent", "/settings",
   ]) assert.match(app, new RegExp(route.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   for (const conclusion of ["direct", "adapted", "needs-info", "not-recommended", "uncertain"]) {
     assert.match(fixtures, new RegExp(`\\b${conclusion.replace("-", "\\-")}\\b`));
@@ -77,13 +79,13 @@ test("实现包含完整页面闭环和统一 Mock 边界", async () => {
   assert.doesNotMatch(app, /加入计划/);
   assert.match(app, /className=\{cx\("home-next-task"/);
   assert.match(app, /className="home-primary-flow"/);
-  assert.match(app, /variant=\{hasNextTask \? "secondary" : "primary"\}/);
+  assert.match(app, /variant="primary"/);
   assert.match(app, /尚未保存为真实计划/);
   assert.doesNotMatch(app, /已安排 \{weeklyMeals\.length\} 天/);
   assert.match(app, /className="home-dashboard-grid"/);
   assert.doesNotMatch(app, /最近的小进步|home-progress-section/);
   assert.match(app, /已记录 \{profile\.triedFoods\.length\} 种/);
-  assert.match(app, /直链或本地 MP4 \/ MOV/);
+  assert.match(app, /支持 MP4 \/ MOV，最大 200MB/);
   assert.match(app, /粘贴链接/);
   assert.match(app, /选择文件/);
   assert.match(app, /className=\{cx\("home-import-body"/);
@@ -95,12 +97,24 @@ test("实现包含完整页面闭环和统一 Mock 边界", async () => {
   assert.match(app, /请先完成宝宝档案，再生成个性化宝宝版本/);
   assert.match(importValidation, /单个文件不能超过 200 MB/);
   assert.match(app, /accept="\.mp4,\.mov,video\/mp4,video\/quicktime/);
-  assert.match(app, /分析这个视频/);
+  assert.match(app, /开始分析/);
+  assert.match(app, /function useSmoothProgress/);
+  assert.match(app, /className="analysis-status-card"/);
+  assert.match(app, /只展示可核验的分析项目，不展示模型内部推理/);
   assert.doesNotMatch(app, /home-upload-video|home-upload-gallery/);
   assert.match(app, /foodJourneyStages/);
   assert.match(app, /food-character-slot/);
   assert.equal((app.match(/<CharacterIllustration intent="link"/g) ?? []).length, 0);
-  assert.match(app, /aria-label="查看宝宝档案"><Suspense fallback=/);
+  assert.match(app, /aria-label="和满满的辅食小助手对话"><Suspense fallback=/);
+  assert.match(app, /下拉，和满满聊聊/);
+  assert.match(app, /function BabyAgentPage/);
+  assert.doesNotMatch(app, /function babyAgentReply/);
+  assert.match(agentRoute, /new OpenAI\(\{ apiKey, baseURL/);
+  assert.match(agentRoute, /stream: true/);
+  assert.match(agentRoute, /enable_thinking: false/);
+  assert.match(agentRoute, /DASHSCOPE_API_KEY/);
+  assert.match(agentClient, /fetch\("\/api\/agent-chat"/);
+  assert.match(agentClient, /response\.body\.getReader\(\)/);
   assert.match(app, /<HomeCharacterAnimation \/><\/Suspense><\/button>/);
   assert.match(app, /lazy\(\(\) => import\("\.\/home-character-animation"\)/);
   assert.match(homeCharacter, /DotLottieReact/);

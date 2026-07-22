@@ -49,6 +49,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   createContext,
   ChangeEvent,
+  CSSProperties,
   FormEvent,
   lazy,
   ReactNode,
@@ -72,10 +73,13 @@ import {
   useParams,
 } from "react-router-dom";
 import { createAiGateway, type AnalysisProgress } from "./ai-gateway";
-import { createAnalysisJob, createUrlAnalysisJob, getAnalysisJob, getAnalysisResult } from "./analysis/client";
+import { streamBabyAgent } from "./agent/client";
+import { createAnalysisJob, createUrlAnalysisJob, getAnalysisJob, getAnalysisResult, retryAnalysisJob } from "./analysis/client";
+import { stabilizeConclusionCard } from "./analysis/conclusion-card";
 import type { AnalysisJobStatus, AnalysisResult } from "./analysis/schemas";
 import { CharacterIllustration, resolveCookingIntent, resolveResultIntent, type CharacterIntent } from "./character-illustrations";
 import { FoodIllustration, type FoodId } from "./food-illustrations";
+import { ProfileIllustration, resolveAgeProfileAsset, resolveAvoidProfileAsset, resolveTextureProfileAsset } from "./profile-illustrations";
 import { validateImportFiles } from "./import-validation";
 import { loadLocalState, saveLocalState } from "./local-db";
 import {
@@ -121,6 +125,47 @@ const ScenarioContext = createContext<ScenarioContextValue>({
 
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
+}
+
+const judgmentLabels: Record<string, string> = {
+  质地匹配度: "软硬粗细是否合适",
+  复合食材安全性: "多种食材一起吃是否合适",
+  新食材引入原则: "新食材怎么尝试",
+  基础进食能力: "宝宝现在能不能处理",
+  过敏风险排查: "是否需要留意过敏",
+};
+
+const dimensionLabels: Record<string, string> = {
+  食材: "食材搭配",
+  调味: "调味",
+  熟制: "是否熟透",
+  质地: "软硬粗细",
+  大小形状: "大小和形状",
+  喂养方式: "怎么喂",
+};
+
+function parentFriendly(value: string) {
+  return value
+    .replace(/thick-puree/gi, "稠泥糊")
+    .replace(/fine-puree/gi, "细泥糊")
+    .replace(/soft-particles?/gi, "软颗粒")
+    .replace(/stage\s*(?:为|是|：|:)?/gi, "当前进食阶段为")
+    .replace(/triedFoods/gi, "已尝试食材记录")
+    .replace(/avoidFoods/gi, "需要避开的食材记录")
+    .replace(/feedingSignals/gi, "进食表现记录")
+    .replace(/texture-refusal/gi, "对颗粒口感比较抗拒")
+    .replace(/note\s*(?:为|是|：|:)?\s*为空/gi, "没有补充备注")
+    .replace(/视频事实[：:]/g, "从视频看：")
+    .replace(/宝宝档案[：:]/g, "结合宝宝档案：")
+    .replace(/匹配当前阶段/g, "更符合宝宝现在能接受的软硬粗细")
+    .replace(/引入状态/g, "以前是否吃过")
+    .replace(/新引入/g, "第一次吃")
+    .replace(/引入原则/g, "尝试顺序")
+    .replace(/违反单一尝试顺序/g, "不方便判断是哪一种食材带来的反应")
+    .replace(/\bA\d+\b/g, "视频中的对应步骤")
+    .replace(/E-[A-Z]+-\d+/g, "相关辅食依据")
+    .replace(/WS\/T\s*\d+[—-]\d+/g, "婴幼儿辅食指导")
+    .replace(/中国婴幼儿喂养指南（2022）/g, "婴幼儿喂养建议");
 }
 
 function Button({
@@ -380,8 +425,7 @@ function OnboardingAge() {
       <TopBar title="建立宝宝档案" eyebrow="1 / 3" />
       <ProgressSteps current={1} />
       <section className="onboarding-card">
-        <div className="question-icon yellow"><Baby size={26} /></div>
-        <span className="question-kicker">先确认基础月龄</span>
+        <ProfileIllustration assetId={resolveAgeProfileAsset(ageValid ? selectedAge : undefined)} size="hero" priority fallback={<div className="question-icon yellow"><Baby size={26} /></div>} />
         <h1>宝宝现在多大了？</h1>
         <p>填写实际月龄。月龄只参与判断，不代表宝宝必须达到某个进食阶段。</p>
         <span className="field-label age-field-label">宝宝月龄</span>
@@ -432,8 +476,7 @@ function OnboardingAvoid() {
       <TopBar title="建立宝宝档案" eyebrow="2 / 3" back="/onboarding/age" />
       <ProgressSteps current={2} />
       <section className="onboarding-card">
-        <div className="question-icon pink"><ShieldAlert size={25} /></div>
-        <span className="question-kicker">会直接影响适配结论</span>
+        <ProfileIllustration assetId={resolveAvoidProfileAsset(mode)} size="hero" priority fallback={<div className="question-icon pink"><ShieldAlert size={25} /></div>} />
         <h1>有哪些食材需要避开？</h1>
         <p>这里只记录已确认过敏、医生要求或家庭正在主动回避的食材。</p>
         <div className="avoid-mode-grid"><button type="button" className={cx(mode === "none" && "selected safe")} aria-pressed={mode === "none"} onClick={chooseNone}><CheckCircle2 size={20} /><span><strong>目前没有</strong><small>没有明确需要避开的食材</small></span></button><button type="button" className={cx(mode === "has" && "selected danger")} aria-pressed={mode === "has"} onClick={() => setProfile({ avoidStatus: "has" })}><ShieldAlert size={20} /><span><strong>有，需要填写</strong><small>选择或补充具体食材</small></span></button></div>
@@ -476,15 +519,13 @@ function OnboardingStage() {
       <TopBar title="建立宝宝档案" eyebrow="3 / 3" back="/onboarding/avoid" />
       <ProgressSteps current={3} />
       <section className="onboarding-card">
-        <div className="question-icon mint"><UtensilsCrossed size={25} /></div>
-        <span className="question-kicker">按真实表现来选</span>
+        <ProfileIllustration assetId={profile.stageConfirmed ? resolveTextureProfileAsset(profile.stage) : "age-default"} size="hero" priority fallback={<div className="question-icon mint"><UtensilsCrossed size={25} /></div>} />
         <h1>宝宝现在能稳定吃什么？</h1>
         <p>不要按月龄推测。选择宝宝多数时候能顺利处理的最高阶段；介于两项之间时选前一项。</p>
         <div className="stage-list">
-          {stageOptions.map((option, index) => (
+          {stageOptions.map((option) => (
             <button type="button" key={option.value} aria-pressed={profile.stageConfirmed && profile.stage === option.value} className={cx("stage-choice", profile.stageConfirmed && profile.stage === option.value && "selected")} onClick={() => chooseStage(option.value)}>
-              <span className="texture-sample">{index + 1}</span>
-              <span><strong>{option.title}</strong><small>{option.desc}</small></span>
+              <span className="stage-choice-copy"><strong>{option.title}</strong><small>{option.desc}</small></span>
               <span className="radio-dot">{profile.stageConfirmed && profile.stage === option.value && <i />}</span>
             </button>
           ))}
@@ -560,6 +601,29 @@ function HomePage() {
   const [submitting, setSubmitting] = useState(false);
   const [uploadPercent, setUploadPercent] = useState(0);
   const [ideaOffset, setIdeaOffset] = useState(0);
+  const [agentPull, setAgentPull] = useState(0);
+  const agentGesture = useRef({ active: false, startY: 0 });
+  const agentPullProgress = Math.min(agentPull / 188, 1);
+  const startAgentPull = (event: React.PointerEvent<HTMLDivElement>) => {
+    if ((event.target as HTMLElement).closest(".profile-pill")) return;
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    agentGesture.current = { active: true, startY: event.clientY };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const updateAgentPull = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!agentGesture.current.active) return;
+    const distance = Math.max(0, Math.min(246, event.clientY - agentGesture.current.startY));
+    setAgentPull(distance);
+  };
+  const finishAgentPull = () => {
+    if (!agentGesture.current.active) return;
+    agentGesture.current.active = false;
+    if (agentPull >= 188) {
+      navigate("/agent", { state: { transition: "agent" } });
+      return;
+    }
+    setAgentPull(0);
+  };
   const pasteLink = async () => {
     try {
       const value = await navigator.clipboard.readText();
@@ -631,11 +695,19 @@ function HomePage() {
   };
   return (
     <Screen className="home-screen has-bottom-nav">
-      <div className="home-hero">
+      <div
+        className={cx("home-hero", agentPull > 0 && "is-agent-pulling", agentPullProgress >= 1 && "is-agent-ready")}
+        style={{ "--agent-pull": `${agentPull}px`, "--agent-progress": agentPullProgress, paddingBottom: 20 + agentPull * .34 } as CSSProperties}
+        onPointerDown={startAgentPull}
+        onPointerMove={updateAgentPull}
+        onPointerUp={finishAgentPull}
+        onPointerCancel={() => { agentGesture.current.active = false; setAgentPull(0); }}
+      >
+        <div className="agent-pull-cue" aria-hidden="true"><MessageCircle size={13} /><span>{agentPullProgress >= 1 ? "松开，和满满聊聊" : agentPullProgress >= .55 ? "继续下拉，再一点点" : "下拉，和满满聊聊"}</span><i /></div>
         <header className="home-header">
           <div><span>宝宝饱饱</span><h1>今天给{profile.name}做什么？</h1></div>
         </header>
-        <button type="button" className="baby-avatar" onClick={() => navigate("/baby")} aria-label="查看宝宝档案"><Suspense fallback={<span className="home-character-motion is-fallback"><picture className="home-character-poster"><img src="/illustrations/ip/v2/home-chick-poster.png" width="256" height="256" alt="" decoding="sync" /></picture></span>}><HomeCharacterAnimation /></Suspense></button>
+        <button type="button" className="baby-avatar" style={{ right: `calc(3px + ${agentPullProgress * 36}%)`, bottom: `${-7 + agentPullProgress * 43}px`, transform: `scale(${1 + agentPullProgress * .58})` }} onClick={() => navigate("/agent")} aria-label="和满满的辅食小助手对话"><Suspense fallback={<span className="home-character-motion is-fallback"><picture className="home-character-poster"><img src="/illustrations/ip/v2/home-chick-poster.png" width="256" height="256" alt="" decoding="sync" /></picture></span>}><HomeCharacterAnimation /></Suspense></button>
         <button type="button" className="profile-pill" onClick={() => navigate("/baby")} aria-label={`查看${profile.name}的宝宝档案`}><Baby size={15} /><span>{profile.name} · {profile.months} 个月 · {stageLabels[profile.stage]}</span><ChevronRight size={15} /></button>
       </div>
       <section className="home-primary-flow" aria-label="当前任务与内容导入">
@@ -644,14 +716,14 @@ function HomePage() {
           <span className="home-next-task-copy"><small>{riskInterrupted ? "需要先确认" : hasCookingSession ? "继续制作" : "今天需要观察"}</small><strong>{hasCookingSession ? "宝宝虾滑面" : pendingObservation?.recipeTitle}</strong><em>{riskInterrupted ? "陪做已暂停，请先查看风险提示" : hasCookingSession ? `当前第 ${cookStep} / 5 步 · 还剩 ${Math.max(5 - completedSteps.length, 1)} 个动作` : "完成后可补充后续观察"}</em>{hasCookingSession && pendingObservation && <b>另有 1 项待观察</b>}</span>
           <ChevronRight size={18} />
         </button>}
+        <div className="home-section-heading home-import-heading"><div><h2>导入辅食视频</h2></div></div>
         <form className={cx("paste-card home-import-card", hasNextTask && "secondary")} onSubmit={submit}>
-          <div className="home-primary-head"><div className="paste-icon">{importMode === "link" ? <Link2 size={21} /> : <Upload size={21} />}</div><div><h2>导入辅食视频</h2><p>直链或本地 MP4 / MOV</p></div></div>
           <div className="home-import-tabs" role="tablist" aria-label="内容导入方式"><button type="button" role="tab" aria-selected={importMode === "link"} className={cx(importMode === "link" && "active")} onClick={() => { setImportMode("link"); setError(""); }}><Link2 size={15} />粘贴链接</button><button type="button" role="tab" aria-selected={importMode === "file"} className={cx(importMode === "file" && "active")} onClick={() => { setImportMode("file"); setError(""); }}><Upload size={15} />选择文件</button></div>
           <div className={cx("home-import-body", importMode === "file" && importFiles.length > 0 && "has-preview")}>
             {importMode === "link" ? <><label htmlFor="video-url" className="sr-only">视频链接</label><div className={cx("url-field", error && "invalid")}><input id="video-url" value={url} placeholder="粘贴可直接访问的视频链接" onChange={(e) => { setUrl(e.target.value); setError(""); }} /><button type="button" onClick={pasteLink}>粘贴</button></div><button className="home-example-link" type="button" onClick={() => { setUrl(demoLink); setError(""); }}><Play size={12} />没有链接？试试宝宝虾滑面示例</button></> : <div className="home-file-import"><input className="sr-only" id="home-content-files" type="file" accept=".mp4,.mov,video/mp4,video/quicktime" onChange={chooseImportFiles} />{importFiles.length === 0 ? <label className={cx("home-file-picker", error && "invalid")} htmlFor="home-content-files"><Upload size={22} /><span><strong>选择本地视频</strong><small>支持 MP4 / MOV，最大 200MB</small></span></label> : <div className="home-file-preview" aria-live="polite">{importFiles.map((file, index) => <article key={`${file.name}-${file.size}-${index}`}><div className="home-file-preview-media"><LocalVideoPreview file={file} /><button type="button" aria-label={`移除 ${file.name}`} onClick={() => setImportFiles((files) => files.filter((_, fileIndex) => fileIndex !== index))}><Trash2 size={16} /></button></div><div className="home-file-preview-info"><span><FileIcon size={17} /></span><div><strong>{file.name}</strong><small>本地视频 · {formatImportFileSize(file.size)}</small></div></div></article>)}<label htmlFor="home-content-files"><RefreshCw size={14} />重新选择</label></div>}</div>}
             {error && <p className="field-error"><AlertCircle size={14} />{error}</p>}
           </div>
-          <Button full type="submit" disabled={submitting} variant={hasNextTask ? "secondary" : "primary"} icon={<Sparkles size={17} />}>{submitting ? uploadPercent > 0 && uploadPercent < 100 ? `上传中 ${uploadPercent}%` : "正在创建任务…" : importMode === "file" ? "分析这个视频" : "开始分析"}</Button>
+          <Button full type="submit" disabled={submitting} variant="primary" icon={<Sparkles size={17} />}>{submitting ? uploadPercent > 0 && uploadPercent < 100 ? `上传中 ${uploadPercent}%` : "正在创建任务…" : "开始分析"}</Button>
         </form>
       </section>
       <section className="home-inspiration-section">
@@ -667,6 +739,83 @@ function HomePage() {
       {!hasNextTask && <section className="home-calm-note"><CharacterIllustration intent="neutral" size="avatar" animate={false} /><div><strong>今天没有待处理任务</strong><p>小鸡仔可以休息一下，或者从一条辅食内容开始。</p></div></section>}
     </Screen>
   );
+}
+
+type AgentChatMessage = { id: string; role: "assistant" | "user"; text: string; tone?: "risk" };
+
+function BabyAgentPage() {
+  const navigate = useNavigate();
+  const profile = useAppStore((state) => state.profile);
+  const [input, setInput] = useState("");
+  const [thinking, setThinking] = useState(false);
+  const [agentError, setAgentError] = useState("");
+  const [failedQuestion, setFailedQuestion] = useState("");
+  const [messages, setMessages] = useState<AgentChatMessage[]>([
+    { id: "welcome", role: "assistant", text: `嗨，我是熟悉${profile.name}档案的辅食小助手。你可以问我今天吃什么、食物质地，或把正在担心的情况直接告诉我。` },
+  ]);
+  const timelineRef = useRef<HTMLDivElement>(null);
+  const requestRef = useRef<AbortController | null>(null);
+  const suggestions = ["今天吃什么？", "现在适合什么质地？", "满满吃过哪些食材？"];
+
+  useEffect(() => {
+    timelineRef.current?.scrollTo({ top: timelineRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages, thinking]);
+  useEffect(() => () => requestRef.current?.abort(), []);
+
+  const ask = async (value = input) => {
+    const question = value.trim();
+    if (!question || thinking) return;
+    const userMessage: AgentChatMessage = { id: crypto.randomUUID(), role: "user", text: question };
+    const requestMessages = [...messages, userMessage].slice(-12).map(({ role, text }) => ({ role, text }));
+    setMessages((current) => [...current, userMessage]);
+    setInput("");
+    setAgentError("");
+    setFailedQuestion("");
+    setThinking(true);
+    const controller = new AbortController();
+    requestRef.current = controller;
+    const assistantId = crypto.randomUUID();
+    let started = false;
+    try {
+      const answer = await streamBabyAgent(requestMessages, profile, (delta) => {
+        if (!started) {
+          started = true;
+          setThinking(false);
+          setMessages((current) => [...current, { id: assistantId, role: "assistant", text: delta }]);
+          return;
+        }
+        setMessages((current) => current.map((message) => message.id === assistantId ? { ...message, text: message.text + delta } : message));
+      }, controller.signal);
+      if (/呼吸困难|明显肿胀|紧急医疗|立即就医|急救/.test(answer)) {
+        setMessages((current) => current.map((message) => message.id === assistantId ? { ...message, tone: "risk" } : message));
+      }
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      setAgentError(error instanceof Error ? error.message : "暂时无法连接千问，请稍后重试");
+      setFailedQuestion(question);
+    } finally {
+      setThinking(false);
+      if (requestRef.current === controller) requestRef.current = null;
+    }
+  };
+
+  return <Screen className="baby-agent-screen">
+    <header className="agent-topbar"><IconButton label="返回首页" onClick={() => navigate("/home", { state: { transition: "back" } })}><ArrowLeft size={20} /></IconButton><div><strong>满满的辅食小助手</strong><span><i />千问 · 已结合宝宝档案</span></div><IconButton label="查看宝宝档案" onClick={() => navigate("/baby")}><Baby size={19} /></IconButton></header>
+    <section className="agent-identity" aria-label="满满的辅食小助手">
+      <div className="agent-character"><Suspense fallback={<img /* eslint-disable-line @next/next/no-img-element */ src="/illustrations/ip/v2/home-chick-poster.png" width="256" height="256" alt="" />}><HomeCharacterAnimation /></Suspense></div>
+      <div><span>嗨，我是满满</span><h1>想问我什么？</h1><p>我会结合宝宝档案回答，不替代医生判断</p><div className="agent-profile-strip"><b>{profile.months} 个月</b><i /><b>{stageLabels[profile.stage]}</b><i /><b>已记录 {profile.triedFoods.length} 种食材</b></div></div>
+    </section>
+    <div className="agent-conversation" ref={timelineRef} aria-live="polite">
+      {messages.map((message) => message.role === "user" ? <UserMessage key={message.id}>{message.text}</UserMessage> : <AssistantMessage key={message.id} tone={message.tone === "risk" ? "risk" : undefined} intent={message.tone === "risk" ? "paused" : "welcome"}><p>{message.text}</p></AssistantMessage>)}
+      {thinking && <AssistantMessage><div className="conversation-thinking"><i /><i /><i /></div></AssistantMessage>}
+    </div>
+    <div className="agent-dock">
+      {agentError && <div className="agent-error" role="alert"><WifiOff size={14} /><span>{agentError}</span>{failedQuestion && <button type="button" onClick={() => void ask(failedQuestion)}>重试</button>}</div>}
+      {messages.length <= 1 && <div className="agent-suggestions">{suggestions.map((suggestion) => <button type="button" key={suggestion} onClick={() => void ask(suggestion)}>{suggestion}</button>)}</div>}
+      <form className="agent-composer" onSubmit={(event) => { event.preventDefault(); void ask(); }}><input value={input} onChange={(event) => setInput(event.target.value)} placeholder={thinking ? "千问正在回答…" : "问问满满…"} maxLength={300} aria-label="输入问题" /><button type="submit" disabled={!input.trim() || thinking} aria-label="发送"><Send size={18} /></button></form>
+      <p>涉及呼吸困难、明显肿胀或持续呕吐，请立即寻求专业帮助</p>
+    </div>
+  </Screen>;
 }
 
 // FRONTEND PLACEHOLDER DATA: AI 接入后由计划生成与视频检索服务替换。
@@ -817,13 +966,42 @@ function BowlVisual() {
   );
 }
 
+function useSmoothProgress(target: number) {
+  const reduceMotion = useReducedMotion();
+  const valueRef = useRef(target);
+  const [value, setValue] = useState(target);
+  useEffect(() => {
+    const start = valueRef.current;
+    if (reduceMotion || target <= start) {
+      valueRef.current = target;
+      setValue(target);
+      return;
+    }
+    const duration = target >= 100 ? 320 : target - start >= 8 ? 520 : 9_500;
+    const startedAt = window.performance.now();
+    let frame = 0;
+    const animate = (now: number) => {
+      const ratio = Math.min((now - startedAt) / duration, 1);
+      const next = start + (target - start) * ratio;
+      valueRef.current = next;
+      setValue(next);
+      if (ratio < 1) frame = window.requestAnimationFrame(animate);
+    };
+    frame = window.requestAnimationFrame(animate);
+    return () => window.cancelAnimationFrame(frame);
+  }, [reduceMotion, target]);
+  return value;
+}
+
 function AnalysisPage() {
   const navigate = useNavigate();
   const { id = "" } = useParams();
   const profile = useAppStore((state) => state.profile);
   const { scenario } = useContext(ScenarioContext);
   const [progress, setProgress] = useState<AnalysisProgress>({ stage: "reading", percent: 8, label: "准备读取视频…" });
+  const [insights, setInsights] = useState<string[]>(["正在建立视频分析任务", "只展示可核验的分析项目，不展示模型内部推理"]);
   const [failed, setFailed] = useState<string | null>(null);
+  const smoothProgress = useSmoothProgress(progress.percent);
   const started = useRef(false);
   useEffect(() => {
     if (started.current) return;
@@ -839,6 +1017,7 @@ function AnalysisPage() {
             queued: "reading", parsing_video: "reading", searching_knowledge: "extracting", generating_plan: "comparing", extracting_frames: "checking", completed: "done", failed: "checking",
           };
           setProgress({ stage: stageMap[job.status], percent: job.progress, label: job.stageText });
+          if (job.insights?.length) setInsights(job.insights);
           if (job.status === "completed") return navigate(`/result/analysis/${id}`, { replace: true });
           if (job.status === "failed") return setFailed(job.error || "分析失败，请重试");
           timer = setTimeout(poll, 1200);
@@ -853,7 +1032,7 @@ function AnalysisPage() {
       .then(() => navigate(`/result/${resultRoutes[scenario]}`))
       .catch(() => setFailed("演示分析失败"));
   }, [id, navigate, profile, scenario]);
-  if (failed) return <AnalysisFailure message={failed} retry={() => { started.current = false; setFailed(null); location.reload(); }} />;
+  if (failed) return <AnalysisFailure message={failed} retry={async () => { await retryAnalysisJob(id); location.reload(); }} />;
   return (
     <Screen className="analysis-screen">
       <TopBar title="正在整理视频" back="/home" />
@@ -861,8 +1040,12 @@ function AnalysisPage() {
         <div className="analysis-orbit"><div className="analysis-center"><CharacterIllustration intent={progress.stage === "reading" ? "link" : progress.stage === "checking" ? "question" : "inspect"} size="hero" /></div><i /><i /><i /></div>
         <h1>{id === "shrimp-noodle-demo" ? "宝宝虾滑面" : "正在生成宝宝版本"}</h1>
         <AnimatePresence mode="wait" initial={false}><motion.p key={progress.label} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: .16 }}>{progress.label}</motion.p></AnimatePresence>
-        <div className="analysis-progress"><span style={{ width: `${progress.percent}%` }} /></div>
-        <strong>{progress.percent}%</strong>
+        <div className="analysis-progress" role="progressbar" aria-label="视频分析进度" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(smoothProgress)}><span style={{ width: `${smoothProgress}%` }} /></div>
+        <strong>{Math.round(smoothProgress)}%</strong>
+      </section>
+      <section className="analysis-status-card" aria-live="polite">
+        <header><Sparkles size={15} /><div><strong>分析动态</strong><small>展示正在核对的事实与依据</small></div></header>
+        <AnimatePresence initial={false} mode="popLayout">{insights.map((insight) => <motion.p key={insight} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: .28 }}><CheckCircle2 size={13} />{insight}</motion.p>)}</AnimatePresence>
       </section>
       <div className="analysis-stages">
         {[
@@ -874,20 +1057,29 @@ function AnalysisPage() {
           return <div key={key} className={cx(done && "done", active && "active")}><span>{done ? <Check size={14} /> : index + 1}</span><p>{label}</p></div>;
         })}
       </div>
-      <p className="analysis-footnote">视频信息不足时会暂停并提问，不会为了生成完整菜谱而猜测。</p>
+      <p className="analysis-footnote">这里展示可核验的分析摘要；视频信息不足时会保留为待确认，不会为了生成完整菜谱而猜测。</p>
     </Screen>
   );
 }
 
-function AnalysisFailure({ message = "链接可能已失效、需要登录，或当前页面无法访问视频内容。", retry }: { message?: string; retry?: () => void }) {
+function AnalysisFailure({ message = "链接可能已失效、需要登录，或当前页面无法访问视频内容。", retry }: { message?: string; retry?: () => void | Promise<void> }) {
   const navigate = useNavigate();
+  const [retrying, setRetrying] = useState(false);
+  const [retryError, setRetryError] = useState("");
+  const handleRetry = async () => {
+    if (!retry || retrying) return;
+    setRetrying(true);
+    setRetryError("");
+    try { await retry(); } catch (cause) { setRetryError(cause instanceof Error ? cause.message : "重试失败，请稍后再试"); setRetrying(false); }
+  };
   return (
     <Screen className="centered-state">
       <TopBar title="视频分析" back="/home" />
       <div className="state-icon muted"><Link2 size={28} /></div>
-      <h1>这条链接暂时无法读取</h1>
+      <h1>这次分析没有完成</h1>
       <p>{message}</p>
-      {retry && <Button full onClick={retry}>重试当前任务</Button>}
+      {retryError && <p className="form-error">{retryError}</p>}
+      {retry && <Button full disabled={retrying} onClick={() => void handleRetry()}>{retrying ? "正在重新开始…" : "重试当前任务"}</Button>}
       <Button full variant="secondary" onClick={() => navigate("/home")}>重新选择视频</Button>
     </Screen>
   );
@@ -907,20 +1099,49 @@ function AnalysisResultPage() {
   if (error) return <AnalysisFailure message={error} retry={() => navigate(`/analysis/${jobId}`, { replace: true })} />;
   if (!result) return <Screen className="analysis-screen"><TopBar title="适配结果" back="/home" /><section className="analysis-visual"><div className="analysis-orbit"><div className="analysis-center"><CharacterIllustration intent="inspect" size="hero" /></div><i /><i /><i /></div><h1>正在读取结果</h1><p>马上就好</p></section></Screen>;
   const baby = result.宝宝版本;
+  const video = result.视频解析;
+  const recipeProfile = video.recipe_profile ?? { food_type: "旧结果未结构化", dominant_texture: "旧结果未结构化", particle_composition: "旧结果未结构化", food_form: "旧结果未结构化", feeding_method: "视频未说明", feeding_posture: "视频未说明", final_portion: "视频未说明" };
+  const recognizedIngredients = video.recognized_ingredients ?? [...new Set(video.facts.actions.flatMap((action) => action.observed_ingredients))].map((name) => ({ name, amount: null, preparation: "请查看对应视频动作", observation: "由旧版视频事实迁移，具体画面依据请查看制作流程" }));
+  const requiredAbilities = video.required_abilities ?? [];
+  const evidence = video.evidence ?? [];
+  const citedEvidenceIds = [...new Set([
+    ...baby.key_judgments.flatMap((item) => item.evidence_ids),
+    ...baby.dimensions.flatMap((item) => item.evidence_ids),
+    ...requiredAbilities.flatMap((item) => item.evidence_ids),
+  ])];
+  const babyName = baby.title.match(/^(.+?)版[：:]/)?.[1] || "宝宝";
+  const fallbackAdjustments = baby.key_judgments.filter((item) => item.status !== "适合").slice(0, 3).map((item) => parentFriendly(item.conclusion));
+  const fallbackConfirmation = baby.key_judgments.find((item) => item.status === "待确认")?.conclusion || "制作和喂食时再看一眼实际质地与宝宝的接受情况，不适应时先停下来调整。";
+  const fallbackConclusionCard = {
+    headline: baby.conclusion_status === "可以直接做" ? `这道辅食挺适合${babyName}，可以按宝宝版来准备` : baby.conclusion_status === "调整后可以做" ? `这道辅食调整一下，就更适合${babyName}了` : baby.conclusion_status === "需要补充信息" ? "再确认几件小事，就能更稳妥地决定" : baby.conclusion_status === "暂不建议" ? "这次先缓一缓，我们换个更合适的做法" : "目前信息还不够，我们先不着急下结论",
+    reassurance: `原视频里的食材和做法有可以保留的地方。${parentFriendly(baby.conclusion)}`,
+    adjustments: fallbackAdjustments.length ? fallbackAdjustments : [parentFriendly(baby.conclusion)],
+    confirmation: parentFriendly(fallbackConfirmation),
+  };
+  const conclusionCard = baby.conclusion_card ? stabilizeConclusionCard(baby, [video.facts, baby.profile_summary, evidence]) : fallbackConclusionCard;
   const canCook = baby.conclusion_status === "可以直接做" || baby.conclusion_status === "调整后可以做";
   return <Screen className="result-screen generated-result-screen">
     <TopBar title="适配结果" back="/home" />
-    <section className="generated-result-hero"><CharacterIllustration intent={baby.conclusion_status === "暂不建议" ? "paused" : "confirm"} size="support" /><div><span>真实视频分析</span><h1>{baby.title}</h1><p>{baby.profile_summary}</p></div></section>
-    <section className={cx("generated-verdict", baby.conclusion_status === "需要补充信息" && "pending", baby.conclusion_status === "暂不建议" && "blocked")}><span>{baby.conclusion_status}</span><h2>{baby.conclusion}</h2></section>
+    <section className="generated-result-hero"><CharacterIllustration intent={baby.conclusion_status === "暂不建议" ? "paused" : "confirm"} size="support" /><div><h1>{parentFriendly(baby.title)}</h1><p>{parentFriendly(baby.profile_summary)}</p></div></section>
+    <section className={cx("generated-verdict", baby.conclusion_status === "需要补充信息" && "pending", baby.conclusion_status === "暂不建议" && "blocked")}><span className="generated-verdict-eyebrow">给{babyName}的适配建议</span><h2>{parentFriendly(conclusionCard.headline)}</h2><p>{parentFriendly(conclusionCard.reassurance)}</p><div className="generated-verdict-adjustments">{conclusionCard.adjustments.map((item, index) => <div key={`${item}-${index}`}><CheckCircle2 size={14} /><span>{parentFriendly(item)}</span></div>)}</div><div className="generated-verdict-confirmation"><Info size={14} /><span>{parentFriendly(conclusionCard.confirmation)}</span></div></section>
     <div className="result-view-tabs generated-tabs" role="tablist" aria-label="分析结果模块"><button role="tab" aria-selected={view === "baby"} className={cx(view === "baby" && "active")} onClick={() => setView("baby")}>宝宝版本</button><button role="tab" aria-selected={view === "video"} className={cx(view === "video" && "active")} onClick={() => setView("video")}>视频解析</button><button role="tab" aria-selected={view === "steps"} className={cx(view === "steps" && "active")} onClick={() => setView("steps")}>陪做步骤</button></div>
+    {view !== "steps" && <KnowledgeLibrary evidence={evidence} citedEvidenceIds={citedEvidenceIds} />}
     {view === "baby" && <div className="generated-result-panel">
-      <section><header><span>五个关键判断</span><h2>先看需要改变什么</h2></header><div className="generated-judgments">{baby.key_judgments.map((item, index) => <article key={`${item.title}-${index}`}><b>{index + 1}</b><div><span className={cx("generated-status", item.status)}>{item.status}</span><h3>{item.title}</h3><p>{item.conclusion}</p><small>{item.reason}</small><EvidenceDetails ids={item.evidence_ids} evidence={result.视频解析.evidence} /></div></article>)}</div></section>
-      <section><header><span>六维评估</span><h2>完整适配检查</h2></header><div className="generated-dimensions">{baby.dimensions.map((item) => <article key={item.dimension}><strong>{item.dimension}</strong><span className={cx("generated-status", item.status)}>{item.status}</span><p>{item.conclusion}</p><EvidenceDetails ids={item.evidence_ids} evidence={result.视频解析.evidence} /></article>)}</div></section>
-      <section><header><span>准备与用量</span><h2>宝宝版食材</h2></header><div className="generated-ingredients">{baby.ingredients.map((item, index) => <article key={`${item.name}-${index}`}><div><strong>{item.name}</strong><span>{item.status}</span></div><p>{item.amount || "用量待确认"}</p><small>{item.preparation}</small></article>)}</div></section>
-      <section className="generated-feeding-check"><header><span>喂前检查</span><h2>最后再确认</h2></header>{baby.feeding_check.map((item, index) => <p key={index}><CheckCircle2 size={14} />{item}</p>)}</section>
+      <section><header><h2>关键判断</h2></header><div className="generated-judgments">{baby.key_judgments.map((item, index) => <article key={`${item.title}-${index}`}><div className="generated-card-heading"><div className="generated-judgment-meta"><b>{index + 1}</b><span className={cx("generated-status", item.status)}>{item.status}</span></div><EvidenceDetails ids={item.evidence_ids} evidence={evidence} /></div><h3>{judgmentLabels[item.title] || parentFriendly(item.title)}</h3><p>{parentFriendly(item.conclusion)}</p>{item.fact_basis ? <small className="generated-fact-basis">{parentFriendly(item.fact_basis)}</small> : <small className="generated-fact-basis">这条旧结果没有分别保存视频信息和宝宝档案信息</small>}<small>{parentFriendly(item.reason)}</small></article>)}</div></section>
+      <section><header><h2>最终食材方案</h2></header><div className="generated-ingredients">{baby.ingredients.map((item, index) => <article key={`${item.name}-${index}`}><div><strong>{parentFriendly(item.name)}</strong><span>{parentFriendly(item.status)}</span></div>{item.amount && <p>{parentFriendly(item.amount)}</p>}<small>{parentFriendly(item.preparation)}</small></article>)}</div></section>
+      <section><header><h2>调整后做法</h2></header><div className="generated-adapted-flow">{result.陪做步骤.map((step, index) => <article key={step.step_id}><b>{index + 1}</b><div><strong>{parentFriendly(step.title)}</strong><p>{parentFriendly(step.instruction)}</p><small>做到这样就可以：{parentFriendly(step.completion_check)}</small></div></article>)}</div></section>
+      <section className="generated-feeding-check"><header><h2>喂之前再看一眼</h2></header>{baby.feeding_check.map((item, index) => <p key={index}><CheckCircle2 size={14} />{parentFriendly(item)}</p>)}</section>
     </div>}
-    {view === "video" && <div className="generated-result-panel"><section><header><span>仅记录可观察事实</span><h2>{result.视频解析.title}</h2></header><p>{result.视频解析.summary}</p><div className="generated-actions">{result.视频解析.facts.actions.map((action) => <article key={action.action_id}><span>{action.start_time || "时间待确认"}</span><h3>{action.title}</h3><p>{action.observed_action}</p><small>{action.keyframe_description}</small>{action.unknowns.length > 0 && <em>待确认：{action.unknowns.join("、")}</em>}</article>)}</div></section></div>}
-    {view === "steps" && <div className="generated-result-panel"><section><header><span>一次只处理当前动作</span><h2>分步骤陪做</h2></header><div className="generated-steps">{result.陪做步骤.map((step, index) => <article key={step.step_id}>{step.image_url ? <img /* eslint-disable-line @next/next/no-img-element */ src={step.image_url} alt={step.keyframe_description || step.title} /> : <div className="generated-frame-placeholder"><CharacterIllustration intent="prepare" size="avatar" /><span>该步骤没有可靠关键帧</span></div>}<div><span>第 {index + 1} 步{step.timing ? ` · ${step.timing}` : ""}</span><h3>{step.title}</h3><p>{step.instruction}</p><strong>做到什么算完成？</strong><small>{step.completion_check}</small><em>{step.personal_reminder}</em><details><summary>视频对应关系</summary><p>{step.mapping_note}</p>{step.keyframe_description && <p>画面：{step.keyframe_description}</p>}</details>{step.quick_actions.length > 0 && <div className="generated-quick-actions">{step.quick_actions.map((item) => <button type="button" key={item}>{item}</button>)}</div>}</div></article>)}</div></section></div>}
+    {view === "video" && <div className="generated-result-panel">
+      <section><header><h2>{parentFriendly(result.视频解析.title)}</h2></header><p className="generated-source-summary">{parentFriendly(result.视频解析.summary)}</p><div className="generated-recipe-profile">{[
+        ["食物类型", recipeProfile.food_type], ["主体质地", recipeProfile.dominant_texture], ["颗粒组成", recipeProfile.particle_composition], ["食物形态", recipeProfile.food_form], ["喂养方式", recipeProfile.feeding_method], ["进食姿势", recipeProfile.feeding_posture], ["成品份量", recipeProfile.final_portion],
+      ].map(([label, value]) => <div key={label}><span>{label}</span><strong>{parentFriendly(value)}</strong></div>)}</div></section>
+      <section><header><h2>识别食材</h2></header><div className="generated-video-ingredients">{recognizedIngredients.map((item, index) => <article key={`${item.name}-${index}`}><strong>{parentFriendly(item.name)}</strong>{item.amount && <span>{parentFriendly(item.amount)}</span>}{item.preparation && !/^(未说明|未知|无)$/.test(item.preparation.trim()) && <p>{parentFriendly(item.preparation)}</p>}</article>)}</div></section>
+      <section><header><h2>六项适配检查</h2></header><div className="generated-dimensions">{baby.dimensions.map((item) => <article key={item.dimension}><div className="generated-card-heading"><strong>{dimensionLabels[item.dimension] || parentFriendly(item.dimension)}</strong><span className={cx("generated-status", item.status)}>{item.status}</span><EvidenceDetails ids={item.evidence_ids} evidence={evidence} /></div><p>{parentFriendly(item.conclusion)}</p>{item.fact_basis ? <small className="generated-fact-basis">{parentFriendly(item.fact_basis)}</small> : <small className="generated-fact-basis">这条旧结果没有分别保存视频信息和宝宝档案信息</small>}{item.reason && <small>{parentFriendly(item.reason)}</small>}</article>)}</div></section>
+      <section><header><h2>宝宝需要具备的能力</h2></header>{requiredAbilities.length ? <div className="generated-abilities">{requiredAbilities.map((item, index) => <article key={`${item.title}-${index}`}><div className="generated-card-heading"><strong>{parentFriendly(item.title)}</strong><span className={cx("generated-status", item.status === "已具备" ? "适合" : "待确认")}>{item.status}</span><EvidenceDetails ids={item.evidence_ids} evidence={evidence} /></div><p>{parentFriendly(item.requirement)}</p><small>{parentFriendly(item.profile_comparison)}</small></article>)}</div> : <p className="generated-section-note">这条旧结果没有单独保存宝宝需要具备的能力。</p>}</section>
+      <p className="generated-disclaimer">本结果用于辅食个体化整理，不提供医疗诊断或治疗方案；存在严重过敏反应或吞咽困难时，请停止进食并及时寻求专业帮助。</p>
+    </div>}
+    {view === "steps" && <div className="generated-result-panel"><section><header><h2>分步骤陪做</h2></header><div className="generated-steps">{result.陪做步骤.map((step, index) => <article key={step.step_id}>{step.image_url ? <img /* eslint-disable-line @next/next/no-img-element */ src={step.image_url} alt={step.keyframe_description || step.title} /> : <div className="generated-frame-placeholder"><CharacterIllustration intent="prepare" size="avatar" /><span>这一步没有合适的视频截图</span></div>}<div><span>第 {index + 1} 步{step.timing ? ` · ${parentFriendly(step.timing)}` : ""}</span><h3>{parentFriendly(step.title)}</h3><p>{parentFriendly(step.instruction)}</p><strong>做到什么算完成？</strong><small>{parentFriendly(step.completion_check)}</small><em>{parentFriendly(step.personal_reminder)}</em><details><summary>查看视频对应位置</summary><p>{parentFriendly(step.mapping_note)}</p>{step.keyframe_description && <p>画面：{parentFriendly(step.keyframe_description)}</p>}</details>{step.quick_actions.length > 0 && <div className="generated-quick-actions">{step.quick_actions.map((item) => <button type="button" key={item}>{parentFriendly(item)}</button>)}</div>}</div></article>)}</div></section></div>}
     <div className="generated-result-bottom"><Button full onClick={() => canCook ? view === "steps" ? navigate(`/cook/${jobId}/session`) : setView("steps") : navigate("/home")} icon={canCook ? <MessageCircle size={18} /> : <Upload size={18} />}>{canCook ? view === "steps" ? "进入对话陪做" : "查看陪做步骤" : baby.conclusion_status === "需要补充信息" ? "补充档案或更换视频" : "换一个辅食视频"}</Button></div><div className="result-spacer" />
   </Screen>;
 }
@@ -928,7 +1149,24 @@ function AnalysisResultPage() {
 function EvidenceDetails({ ids, evidence }: { ids: string[]; evidence: AnalysisResult["视频解析"]["evidence"] }) {
   const matches = evidence.filter((item) => ids.includes(item.evidence_id));
   if (!matches.length) return null;
-  return <details className="generated-evidence"><summary><BookOpen size={12} />查看依据 · {matches.length}</summary>{matches.map((item) => <div key={item.evidence_id}><strong>{item.evidence_id} · {item.source}</strong><small>{item.location}</small><p>{item.summary}</p></div>)}</details>;
+  return <details className="generated-evidence"><summary aria-label={`查看 ${matches.length} 条知识依据`}><span aria-hidden="true" />{matches.length}</summary><div className="generated-evidence-popover">{matches.map((item) => <article key={item.evidence_id}><strong>{item.evidence_id} · {item.source}</strong><small>{item.location}</small><p>{item.summary}</p><em>与本次判断的关系：{item.relationship}</em></article>)}</div></details>;
+}
+
+function KnowledgeLibrary({ evidence, citedEvidenceIds }: { evidence: AnalysisResult["视频解析"]["evidence"]; citedEvidenceIds: string[] }) {
+  const [activeSource, setActiveSource] = useState<number | null>(null);
+  const sources = [
+    { title: "WS/T 678—2020《婴幼儿辅食添加营养指南》", match: "WS/T 678", scope: "用于判断辅食添加顺序、食材质地、调味、熟制和进食安全。" },
+    { title: "《中国婴幼儿喂养指南（2022）》", match: "中国婴幼儿喂养指南", scope: "用于判断食物多样性、回应式喂养、进餐看护和过敏食物引入。" },
+    { title: "《托育机构婴幼儿喂养与营养指南（试行）》", match: "托育机构婴幼儿喂养与营养指南", scope: "主要面向托育机构；家庭场景只参考其中的喂养、看护和质地原则。" },
+    { title: "WS/T 821—2023《托育机构质量评估标准》", match: "WS/T 821", scope: "主要面向托育机构；本产品只参考过敏记录、个体差异和食物安全相关条目。" },
+  ];
+  const selectedSource = activeSource === null ? null : sources[activeSource];
+  const citedIds = new Set(citedEvidenceIds);
+  const selectedEvidence = selectedSource ? evidence.filter((item) => citedIds.has(item.evidence_id) && item.source.includes(selectedSource.match)) : [];
+  return <>
+    <details className="generated-knowledge-banner"><summary><BookOpen size={16} /><div><strong>中国婴幼儿辅食佐证库</strong><span>{evidence.length ? `4 份官方文件 · ${evidence.length} 条可追溯依据` : "这条旧结果没有保存结构化依据"}</span></div><ChevronRight size={15} /></summary><div className="generated-knowledge-sources">{sources.map((source, index) => <button type="button" key={source.title} onClick={() => setActiveSource(index)} aria-label={`查看${source.title}`}><b>{index + 1}</b><span>{source.title}</span><ChevronRight size={13} /></button>)}</div></details>
+    <AnimatePresence>{selectedSource && <Sheet title={selectedSource.title} onClose={() => setActiveSource(null)}><div className="knowledge-document-sheet"><p>{selectedSource.scope}</p><div className="knowledge-document-meta"><BookOpen size={16} /><span>本次分析引用 {selectedEvidence.length} 条</span></div>{selectedEvidence.length > 0 ? <div className="knowledge-document-rules">{selectedEvidence.map((item) => <article key={item.evidence_id}><div><strong>{parentFriendly(item.dimension)}</strong><span>{parentFriendly(item.location)}</span></div><p>{parentFriendly(item.summary)}</p><small>{parentFriendly(item.relationship)}</small></article>)}</div> : <div className="knowledge-document-empty">本次分析没有引用这份文件中的具体条目。</div>}<p className="knowledge-document-note">这里只展示本次分析使用到的条目摘要和所在位置，不替代原文件全文。</p></div></Sheet>}</AnimatePresence>
+  </>;
 }
 
 function RecipeResultPage() {
@@ -1816,7 +2054,7 @@ function BabyPage() {
   const profile = useAppStore((state) => state.profile);
   const resetProfile = useAppStore((state) => state.resetProfile);
   const [confirmReset, setConfirmReset] = useState(false);
-  return <Screen className="baby-screen has-bottom-nav"><TopBar title="宝宝档案" action={<IconButton label="设置" onClick={() => navigate("/settings")}><Settings size={20} /></IconButton>} /><section className="baby-hero"><div className="large-avatar"><CharacterIllustration intent="neutral" size="support" animate={false} /></div><div><span className="eyebrow">当前宝宝</span><h1>{profile.name}</h1><p>{profile.months} 个月 · {stageLabels[profile.stage]}</p></div><IconButton label="编辑档案" onClick={() => navigate("/baby/edit")}><Edit3 size={18} /></IconButton></section><section className="profile-summary"><div><span><Baby size={19} /></span><p><small>月龄</small><strong>{profile.months} 个月</strong></p></div><div><span><UtensilsCrossed size={19} /></span><p><small>进食阶段</small><strong>{stageLabels[profile.stage]}</strong></p></div><div><span><ShieldCheck size={19} /></span><p><small>明确回避</small><strong>{profile.avoidFoods.length ? profile.avoidFoods.join("、") : "暂无"}</strong></p></div></section><section className="baby-section"><div className="section-heading"><div><span className="eyebrow">食材尝试</span><h2>让适配更有依据</h2></div><button onClick={() => navigate("/baby/foods")}>全部食材</button></div><div className="food-status-grid"><div><span className="food-icon">蛋</span><strong>鸡蛋</strong><small className="green-text">已尝试</small></div><div><span className="food-icon">虾</span><strong>鲜虾</strong><small className="orange-text">待观察</small></div><div><span className="food-icon">胡</span><strong>胡萝卜</strong><small className="green-text">已尝试</small></div><div><span className="food-icon">西</span><strong>西蓝花</strong><small className="green-text">已尝试</small></div></div></section><section className="baby-section"><button className="profile-link" onClick={() => navigate("/history")}><span><History size={18} /><span><strong>制作与反馈记录</strong><small>3 条本机记录</small></span></span><ChevronRight size={18} /></button><button className="profile-link" onClick={() => navigate("/settings")}><span><LockKeyhole size={18} /><span><strong>数据与隐私</strong><small>只保存在当前浏览器</small></span></span><ChevronRight size={18} /></button><button className="profile-link profile-reset-link" onClick={() => setConfirmReset(true)}><span><Trash2 size={18} /><span><strong>重新填写宝宝档案</strong><small>从月龄开始，保留制作与反馈记录</small></span></span><ChevronRight size={18} /></button></section><AnimatePresence>{confirmReset && <Sheet title="重新填写宝宝档案？" onClose={() => setConfirmReset(false)}><div className="sheet-content"><p>将清空当前宝宝的月龄、忌口、进食能力和食材尝试信息，然后回到建档第一步。制作记录与反馈不会删除。</p><Button full variant="danger" onClick={() => { resetProfile(); setConfirmReset(false); navigate("/onboarding/age", { replace: true }); }}>重置档案并重新开始</Button><Button full variant="ghost" onClick={() => setConfirmReset(false)}>取消</Button></div></Sheet>}</AnimatePresence></Screen>;
+  return <Screen className="baby-screen has-bottom-nav"><TopBar title="宝宝档案" action={<IconButton label="设置" onClick={() => navigate("/settings")}><Settings size={20} /></IconButton>} /><section className="baby-hero"><div className="large-avatar"><CharacterIllustration intent="neutral" size="support" animate={false} /></div><div><h1>{profile.name}</h1><p>{profile.months} 个月 · {stageLabels[profile.stage]}</p></div><IconButton label="编辑档案" onClick={() => navigate("/baby/edit")}><Edit3 size={18} /></IconButton></section><section className="profile-summary"><div><span><Baby size={19} /></span><p><small>月龄</small><strong>{profile.months} 个月</strong></p></div><div><span><UtensilsCrossed size={19} /></span><p><small>进食阶段</small><strong>{stageLabels[profile.stage]}</strong></p></div><div><span><ShieldCheck size={19} /></span><p><small>明确回避</small><strong>{profile.avoidFoods.length ? profile.avoidFoods.join("、") : "暂无"}</strong></p></div></section><section className="baby-section"><div className="section-heading"><div><span className="eyebrow">食材尝试</span><h2>让适配更有依据</h2></div><button onClick={() => navigate("/baby/foods")}>全部食材</button></div><div className="food-status-grid"><div><span className="food-icon food-icon-illustrated"><FoodIllustration foodId="egg" alt="" /></span><strong>鸡蛋</strong><small className="green-text">已尝试</small></div><div><span className="food-icon">虾</span><strong>鲜虾</strong><small className="orange-text">待观察</small></div><div><span className="food-icon food-icon-illustrated"><FoodIllustration foodId="carrot" alt="" /></span><strong>胡萝卜</strong><small className="green-text">已尝试</small></div><div><span className="food-icon food-icon-illustrated"><FoodIllustration foodId="broccoli" alt="" /></span><strong>西蓝花</strong><small className="green-text">已尝试</small></div></div></section><section className="baby-section"><button className="profile-link" onClick={() => navigate("/history")}><span><History size={18} /><span><strong>制作与反馈记录</strong><small>3 条本机记录</small></span></span><ChevronRight size={18} /></button><button className="profile-link" onClick={() => navigate("/settings")}><span><LockKeyhole size={18} /><span><strong>数据与隐私</strong><small>只保存在当前浏览器</small></span></span><ChevronRight size={18} /></button><button className="profile-link profile-reset-link" onClick={() => setConfirmReset(true)}><span><Trash2 size={18} /><span><strong>重新填写宝宝档案</strong><small>从月龄开始，保留制作与反馈记录</small></span></span><ChevronRight size={18} /></button></section><AnimatePresence>{confirmReset && <Sheet title="重新填写宝宝档案？" onClose={() => setConfirmReset(false)}><div className="sheet-content"><p>将清空当前宝宝的月龄、忌口、进食能力和食材尝试信息，然后回到建档第一步。制作记录与反馈不会删除。</p><Button full variant="danger" onClick={() => { resetProfile(); setConfirmReset(false); navigate("/onboarding/age", { replace: true }); }}>重置档案并重新开始</Button><Button full variant="ghost" onClick={() => setConfirmReset(false)}>取消</Button></div></Sheet>}</AnimatePresence></Screen>;
 }
 
 function FoodsPage() {
@@ -1903,6 +2141,7 @@ function AppRoutes() {
               <Route path="/onboarding/avoid" element={<OnboardingAvoid />} />
               <Route path="/onboarding/stage" element={<OnboardingStage />} />
               <Route path="/home" element={<HomePage />} />
+              <Route path="/agent" element={<BabyAgentPage />} />
               <Route path="/plan" element={<PlanSetupPage />} />
               <Route path="/plan/week" element={<WeeklyPlanPage />} />
               <Route path="/food-map" element={<FoodMapPage />} />

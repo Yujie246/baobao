@@ -1,4 +1,3 @@
-import { waitUntil } from "@vercel/functions";
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { analysisBabyProfileSchema } from "../../analysis/schemas";
@@ -9,6 +8,15 @@ import { saveJob, saveUploadedVideo, type VideoSource } from "../../analysis/ser
 export const runtime = "nodejs";
 export const maxDuration = 800;
 const MAX_VIDEO_BYTES = 200 * 1024 * 1024;
+
+async function runInBackground(task: Promise<void>) {
+  if (process.env.VERCEL) {
+    const { waitUntil } = await import("@vercel/functions");
+    waitUntil(task);
+  } else {
+    void task;
+  }
+}
 
 function isVideo(file: File) {
   return ["video/mp4", "video/quicktime"].includes(file.type) || /\.(mp4|mov)$/i.test(file.name);
@@ -37,7 +45,7 @@ export async function POST(request: Request) {
         const now = Date.now();
         await saveJob({ jobId, status: "queued", progress: 5, stageText: "任务已创建，准备分析", error: null, createdAt: now, updatedAt: now, profile, video });
         const task = processAnalysisJob(jobId);
-        if (process.env.VERCEL) waitUntil(task); else void task;
+        await runInBackground(task);
         return NextResponse.json({ jobId, status: "queued" }, { status: 202 });
       }
       const value = body.video?.url;
@@ -50,7 +58,7 @@ export async function POST(request: Request) {
     const now = Date.now();
     await saveJob({ jobId, status: "queued", progress: 5, stageText: "任务已创建，准备分析", error: null, createdAt: now, updatedAt: now, profile, video });
     const task = processAnalysisJob(jobId);
-    if (process.env.VERCEL) waitUntil(task); else void task;
+    await runInBackground(task);
     return NextResponse.json({ jobId, status: "queued" }, { status: 202 });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "创建任务失败" }, { status: 400 });

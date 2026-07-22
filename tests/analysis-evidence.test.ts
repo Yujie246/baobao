@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { POLICY_EVIDENCE, searchKnowledge } from "../app/analysis/evidence";
+import { POLICY_EVIDENCE, searchKnowledge, searchKnowledgeForProfile } from "../app/analysis/evidence";
 
 describe("policy evidence", () => {
   it("has stable unique evidence ids", () => {
@@ -14,5 +14,13 @@ describe("policy evidence", () => {
 
   it("is marked as real policy evidence rather than mock output", () => {
     expect(POLICY_EVIDENCE.every((item) => item.source.length > 0 && item.location.length > 0)).toBe(true);
+  });
+
+  it("uses a smaller age-aware evidence set for model generation", () => {
+    const profile = { name: "满满", months: 10, correctedMonths: null, premature: false, stage: "soft-lumps", avoidFoods: [], triedFoods: [], feedingSignals: [], note: "" };
+    const selected = searchKnowledgeForProfile(profile);
+    expect(selected.length).toBeLessThan(POLICY_EVIDENCE.length);
+    expect(selected.some((item) => item.evidence_id === "E-TEX-03")).toBe(true);
+    expect(new Set(selected.map((item) => item.dimension)).size).toBe(6);
   });
 });

@@ -2,7 +2,7 @@ import "server-only";
 import { get, put } from "@vercel/blob";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { AnalysisJobStatus, AnalysisResult, AnalysisBabyProfile } from "../schemas";
+import type { AnalysisJobStatus, AnalysisResult, AnalysisBabyProfile, VideoFactPackage } from "../schemas";
 
 export interface VideoSource {
   kind: "local" | "blob" | "remote";
@@ -15,6 +15,7 @@ export interface VideoSource {
 export interface AnalysisJobRecord extends AnalysisJobStatus {
   profile: AnalysisBabyProfile;
   video: VideoSource;
+  facts?: VideoFactPackage;
   result?: AnalysisResult;
 }
 

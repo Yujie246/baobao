@@ -54,19 +54,85 @@ export const knowledgeRuleSchema = z.object({
   relationship: z.string().min(1),
 });
 
+const adaptationStatusSchema = z.preprocess((value) => {
+  if (typeof value !== "string") return value;
+  const status = value.trim();
+  if (["适合", "需调整", "待确认", "不建议"].includes(status)) return status;
+  if (/(不建议|不适合|禁止|风险高|应避免)/.test(status)) return "不建议";
+  if (/(待确认|待核实|需确认|需要确认|无法确认|不确定|未知|信息不足|缺少信息|未记录|需观察)/.test(status)) return "待确认";
+  if (/(需调整|需要调整|调整后|需修改|需要修改|需注意|需要注意|需关注|有条件|部分适合|存在冲突|有风险)/.test(status)) return "需调整";
+  if (/(适合|符合|通过|可接受|可行|无需调整|已具备|基本具备)/.test(status)) return "适合";
+  // 状态只是展示摘要；遇到模型新措辞时采取最保守的“待确认”，不能让完整分析因一个标签失败。
+  return "待确认";
+}, z.enum(["适合", "需调整", "待确认", "不建议"]));
+
 const judgmentSchema = z.object({
   title: z.string().min(1),
   conclusion: z.string().min(1),
+  fact_basis: z.string().min(1),
   reason: z.string().min(1),
-  evidence_ids: z.array(z.string()),
-  status: z.enum(["适合", "需调整", "待确认", "不建议"]),
+  evidence_ids: z.array(z.string().min(1)).min(1).max(2),
+  status: adaptationStatusSchema,
 });
 
 const dimensionSchema = z.object({
   dimension: z.enum(["食材", "调味", "熟制", "质地", "大小形状", "喂养方式"]),
   conclusion: z.string().min(1),
-  status: z.enum(["适合", "需调整", "待确认", "不建议"]),
-  evidence_ids: z.array(z.string()),
+  fact_basis: z.string().min(1),
+  reason: z.string().min(1),
+  status: adaptationStatusSchema,
+  evidence_ids: z.array(z.string().min(1)).min(1).max(2),
+});
+
+const videoRecipeProfileSchema = z.object({
+  food_type: z.string().min(1),
+  dominant_texture: z.string().min(1),
+  particle_composition: z.string().min(1),
+  food_form: z.string().min(1),
+  feeding_method: z.string().min(1),
+  feeding_posture: z.string().min(1),
+  final_portion: z.string().min(1),
+});
+
+const videoIngredientSchema = z.object({
+  name: z.string().min(1),
+  amount: z.string().nullable(),
+  preparation: z.string().min(1),
+  observation: z.string().min(1),
+});
+
+const requiredAbilityStatusSchema = z.preprocess((value) => {
+  if (typeof value !== "string") return value;
+  if (["适合", "已确认", "具备", "基本具备"].includes(value)) return "已具备";
+  if (["未确认", "不确定", "信息不足"].includes(value)) return "待确认";
+  if (["需调整", "需要协助", "需要帮助", "不具备", "暂未具备", "不适合"].includes(value)) return "需协助";
+  return "待确认";
+}, z.enum(["已具备", "待确认", "需协助"]));
+
+const conclusionStatusSchema = z.preprocess((value) => {
+  if (typeof value !== "string") return "无法可靠判断";
+  const status = value.trim();
+  if (["可以直接做", "调整后可以做", "需要补充信息", "暂不建议", "无法可靠判断"].includes(status)) return status;
+  if (/(不建议|不适合|应避免|暂缓)/.test(status)) return "暂不建议";
+  if (/(补充|确认|信息不足|待核实)/.test(status)) return "需要补充信息";
+  if (/(调整|修改|处理后)/.test(status)) return "调整后可以做";
+  if (/(直接|可以做|适合制作)/.test(status)) return "可以直接做";
+  return "无法可靠判断";
+}, z.enum(["可以直接做", "调整后可以做", "需要补充信息", "暂不建议", "无法可靠判断"]));
+
+const conclusionCardSchema = z.object({
+  headline: z.string().min(6).max(32),
+  reassurance: z.string().min(20).max(140),
+  adjustments: z.array(z.string().min(8).max(90)).min(1).max(3),
+  confirmation: z.string().min(8).max(100),
+});
+
+const requiredAbilitySchema = z.object({
+  title: z.string().min(1),
+  requirement: z.string().min(1),
+  profile_comparison: z.string().min(1),
+  status: requiredAbilityStatusSchema,
+  evidence_ids: z.array(z.string().min(1)).min(1).max(2),
 });
 
 export const cookingStepSchema = z.object({
@@ -92,9 +158,13 @@ export const analysisResultSchema = z.object({
   宝宝版本: z.object({
     title: z.string().min(1),
     conclusion: z.string().min(1),
-    conclusion_status: z.enum(["可以直接做", "调整后可以做", "需要补充信息", "暂不建议", "无法可靠判断"]),
+    conclusion_status: conclusionStatusSchema,
+    conclusion_card: conclusionCardSchema,
     profile_summary: z.string().min(1),
-    key_judgments: z.array(judgmentSchema).length(5),
+    key_judgments: z.array(judgmentSchema).length(5).superRefine((items, context) => {
+      const expected = ["质地匹配度", "复合食材安全性", "新食材引入原则", "基础进食能力", "过敏风险排查"];
+      if (items.some((item, index) => item.title !== expected[index])) context.addIssue({ code: "custom", message: `关键判断必须依次为：${expected.join("、")}` });
+    }),
     ingredients: z.array(z.object({ name: z.string(), amount: z.string().nullable(), preparation: z.string(), status: z.string(), evidence_ids: z.array(z.string()) })),
     dimensions: z.array(dimensionSchema).length(6).superRefine((items, context) => {
       const expected = new Set(["食材", "调味", "熟制", "质地", "大小形状", "喂养方式"]);
@@ -107,7 +177,10 @@ export const analysisResultSchema = z.object({
     title: z.string().min(1),
     summary: z.string().min(1),
     facts: videoFactPackageSchema,
-    evidence: z.array(knowledgeRuleSchema),
+    recipe_profile: videoRecipeProfileSchema,
+    recognized_ingredients: z.array(videoIngredientSchema),
+    required_abilities: z.array(requiredAbilitySchema),
+    evidence: z.array(knowledgeRuleSchema).default([]),
   }),
   陪做步骤: z.array(cookingStepSchema).min(1),
 });
@@ -120,6 +193,7 @@ export const analysisJobStatusSchema = z.object({
   error: z.string().nullable(),
   createdAt: z.number(),
   updatedAt: z.number(),
+  insights: z.array(z.string()).optional(),
 });
 
 export type VideoFactPackage = z.infer<typeof videoFactPackageSchema>;

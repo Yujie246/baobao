@@ -87,6 +87,12 @@ export async function getAnalysisJob(jobId: string) {
   return response.json() as Promise<AnalysisJobStatus>;
 }
 
+export async function retryAnalysisJob(jobId: string) {
+  const response = await fetch(`/api/analysis-jobs/${encodeURIComponent(jobId)}`, { method: "POST" });
+  if (!response.ok) throw new Error(await errorMessage(response));
+  return response.json() as Promise<{ jobId: string; status: "queued" }>;
+}
+
 export async function getAnalysisResult(jobId: string) {
   const response = await fetch(`/api/analysis-jobs/${encodeURIComponent(jobId)}/result`, { cache: "no-store" });
   if (!response.ok) throw new Error(await errorMessage(response));
