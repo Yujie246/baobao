@@ -14,6 +14,7 @@ import {
   Clock3,
   Edit3,
   Download,
+  File as FileIcon,
   FileQuestion,
   History,
   Home,
@@ -37,6 +38,7 @@ import {
   Sparkles,
   Timer,
   Trash2,
+  Upload,
   UtensilsCrossed,
   Volume2,
   WifiOff,
@@ -45,6 +47,7 @@ import {
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   createContext,
+  ChangeEvent,
   FormEvent,
   ReactNode,
   useContext,
@@ -68,6 +71,7 @@ import {
 import { createAiGateway, type AnalysisProgress } from "./ai-gateway";
 import { CharacterIllustration, resolveCookingIntent, resolveResultIntent, type CharacterIntent } from "./character-illustrations";
 import { FoodIllustration, type FoodId } from "./food-illustrations";
+import { validateImportFiles } from "./import-validation";
 import { loadLocalState, saveLocalState } from "./local-db";
 import {
   demoLink,
@@ -494,6 +498,11 @@ const homeInspirationIdeas = [
   { id: "banana-oat", title: "香蕉燕麦软饼", time: "约 10 分钟", foodId: "banana" as FoodId, note: "加餐灵感，质地仍需确认" },
 ] as const;
 
+function formatImportFileSize(bytes: number) {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(bytes >= 10 * 1024 * 1024 ? 0 : 1)} MB`;
+}
+
 function HomePage() {
   const navigate = useNavigate();
   const profile = useAppStore((state) => state.profile);
@@ -505,6 +514,8 @@ function HomePage() {
   const cookConversation = useAppStore((state) => state.cookConversation);
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
+  const [importMode, setImportMode] = useState<"link" | "file">("link");
+  const [importFiles, setImportFiles] = useState<File[]>([]);
   const [ideaOffset, setIdeaOffset] = useState(0);
   const pasteLink = async () => {
     try {
@@ -519,8 +530,25 @@ function HomePage() {
       setError("无法读取剪贴板，请长按输入框粘贴");
     }
   };
+  const chooseImportFiles = (event: ChangeEvent<HTMLInputElement>) => {
+    const selected = Array.from(event.currentTarget.files ?? []);
+    event.currentTarget.value = "";
+    if (!selected.length) return;
+    const validationError = validateImportFiles(selected);
+    if (validationError) return setError(validationError);
+    setImportFiles(selected);
+    setError("");
+  };
   const submit = (event?: FormEvent) => {
     event?.preventDefault();
+    if (importMode === "file") {
+      if (!importFiles.length) {
+        setError("请先选择一个视频或最多 9 张图片");
+        return;
+      }
+      navigate("/analysis/shrimp-noodle-demo");
+      return;
+    }
     if (!/^https?:\/\//.test(url.trim())) {
       setError("请粘贴以 http:// 或 https:// 开头的视频链接");
       return;
@@ -551,12 +579,12 @@ function HomePage() {
           <ChevronRight size={18} />
         </button>}
         <form className={cx("paste-card home-import-card", hasNextTask && "secondary")} onSubmit={submit}>
-          <div className="home-primary-head"><div className="paste-icon"><Link2 size={21} /></div><div><h2>导入辅食内容</h2><p>当前支持视频链接</p></div><span>链接分析</span></div>
-          <label htmlFor="video-url" className="sr-only">视频链接</label>
-          <div className={cx("url-field", error && "invalid")}><input id="video-url" value={url} placeholder="粘贴辅食视频链接" onChange={(e) => { setUrl(e.target.value); setError(""); }} /><button type="button" onClick={pasteLink}>粘贴</button></div>
+          <div className="home-primary-head"><div className="paste-icon">{importMode === "link" ? <Link2 size={21} /> : <Upload size={21} />}</div><div><h2>导入辅食内容</h2><p>链接、视频或图片都可以</p></div><span>演示解析</span></div>
+          <div className="home-import-tabs" role="tablist" aria-label="内容导入方式"><button type="button" role="tab" aria-selected={importMode === "link"} className={cx(importMode === "link" && "active")} onClick={() => { setImportMode("link"); setError(""); }}><Link2 size={15} />粘贴链接</button><button type="button" role="tab" aria-selected={importMode === "file"} className={cx(importMode === "file" && "active")} onClick={() => { setImportMode("file"); setError(""); }}><Upload size={15} />选择文件</button></div>
+          {importMode === "link" ? <><label htmlFor="video-url" className="sr-only">视频链接</label><div className={cx("url-field", error && "invalid")}><input id="video-url" value={url} placeholder="粘贴辅食视频链接" onChange={(e) => { setUrl(e.target.value); setError(""); }} /><button type="button" onClick={pasteLink}>粘贴</button></div></> : <div className="home-file-import"><input className="sr-only" id="home-content-files" type="file" multiple accept=".mp4,.mov,.jpg,.jpeg,.png,video/mp4,video/quicktime,image/jpeg,image/png" onChange={chooseImportFiles} />{importFiles.length === 0 ? <label className={cx("home-file-picker", error && "invalid")} htmlFor="home-content-files"><Upload size={22} /><span><strong>选择视频或图片</strong><small>视频≤200MB；图文最多9张</small></span></label> : <div className="home-file-list" aria-live="polite">{importFiles.map((file, index) => <article key={`${file.name}-${file.size}-${index}`}><span><FileIcon size={18} /></span><div><strong>{file.name}</strong><small>{file.type.startsWith("video/") ? "视频" : "图片"} · {formatImportFileSize(file.size)}</small></div><button type="button" aria-label={`移除 ${file.name}`} onClick={() => setImportFiles((files) => files.filter((_, fileIndex) => fileIndex !== index))}><Trash2 size={16} /></button></article>)}<label htmlFor="home-content-files">重新选择</label></div>}</div>}
           {error && <p className="field-error"><AlertCircle size={14} />{error}</p>}
-          <Button full type="submit" variant={hasNextTask ? "secondary" : "primary"} icon={<Sparkles size={17} />}>开始分析</Button>
-          <button className="home-example-link" type="button" onClick={() => { setUrl(demoLink); setError(""); }}><Play size={12} />没有链接？试试宝宝虾滑面示例</button>
+          <Button full type="submit" variant={hasNextTask ? "secondary" : "primary"} icon={<Sparkles size={17} />}>{importMode === "file" ? "分析所选内容" : "开始分析"}</Button>
+          {importMode === "link" && <button className="home-example-link" type="button" onClick={() => { setUrl(demoLink); setError(""); }}><Play size={12} />没有链接？试试宝宝虾滑面示例</button>}
         </form>
       </section>
       <section className="home-inspiration-section">
