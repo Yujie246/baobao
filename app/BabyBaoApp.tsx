@@ -49,7 +49,9 @@ import {
   createContext,
   ChangeEvent,
   FormEvent,
+  lazy,
   ReactNode,
+  Suspense,
   useContext,
   useEffect,
   useMemo,
@@ -89,6 +91,8 @@ const stageLabels = {
   "soft-lumps": "软颗粒",
   "finger-food": "软手指食物",
 };
+
+const HomeCharacterAnimation = lazy(() => import("./home-character-animation").then((module) => ({ default: module.HomeCharacterAnimation })));
 
 const resultRoutes: Record<Suitability, string> = {
   direct: "direct",
@@ -569,7 +573,7 @@ function HomePage() {
         <header className="home-header">
           <div><span>宝宝饱饱</span><h1>今天给{profile.name}做什么？</h1></div>
         </header>
-        <button type="button" className="baby-avatar" onClick={() => navigate("/baby")} aria-label="查看宝宝档案"><CharacterIllustration intent="welcome" size="support" animate={false} priority /></button>
+        <button type="button" className="baby-avatar" onClick={() => navigate("/baby")} aria-label="查看宝宝档案"><Suspense fallback={<span className="home-character-motion is-fallback"><CharacterIllustration intent="welcome" size="support" animate={false} priority className="home-character-poster" /></span>}><HomeCharacterAnimation /></Suspense></button>
         <button type="button" className="profile-pill" onClick={() => navigate("/baby")} aria-label={`查看${profile.name}的宝宝档案`}><Baby size={15} /><span>{profile.name} · {profile.months} 个月 · {stageLabels[profile.stage]}</span><ChevronRight size={15} /></button>
       </div>
       <section className="home-primary-flow" aria-label="当前任务与内容导入">
