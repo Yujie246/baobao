@@ -8,6 +8,7 @@ interface AppStore extends PersistedAppState {
   hydrate: (state: PersistedAppState | null) => void;
   setProfile: (profile: Partial<BabyProfile>) => void;
   finishOnboarding: () => void;
+  resetProfile: () => void;
   setCookStep: (step: number) => void;
   setCookPrepared: (value: boolean) => void;
   setCookIngredientBlocked: (value: boolean) => void;
@@ -66,6 +67,14 @@ export const useAppStore = create<AppStore>()(
       }),
       setProfile: (profile) => set((state) => ({ profile: { ...state.profile, ...profile } })),
       finishOnboarding: () => set((state) => ({ profile: { ...state.profile, completed: true } })),
+      resetProfile: () => set({
+        profile: {
+          ...defaultProfile,
+          avoidFoods: [],
+          triedFoods: [],
+          feedingSignals: [],
+        },
+      }),
       setCookStep: (cookStep) => set({ cookStep }),
       setCookPrepared: (cookPrepared) => set({ cookPrepared }),
       setCookIngredientBlocked: (cookIngredientBlocked) => set({ cookIngredientBlocked }),

@@ -168,4 +168,14 @@ describe("宝宝档案状态", () => {
     expect(migrated.feedingSignalsConfirmed).toBe(true);
     expect(migrated.avoidStatus).toBe("none");
   });
+
+  it("只重置宝宝档案，不删除制作与反馈记录", () => {
+    useAppStore.getState().loadDemo();
+    const historyBefore = useAppStore.getState().history;
+    useAppStore.getState().resetProfile();
+    const state = useAppStore.getState();
+    expect(state.profile).toMatchObject({ months: 0, completed: false, ageConfirmed: false, avoidStatus: null });
+    expect(state.profile.triedFoods).toEqual([]);
+    expect(state.history).toEqual(historyBefore);
+  });
 });

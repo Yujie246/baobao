@@ -402,6 +402,8 @@ button,.bottom-nav-item{position:relative;overflow:hidden;isolation:isolate}
 .related-recipe{grid-template-columns:39px 1fr}
 @keyframes food-planned-glow{50%{transform:scale(1.1);opacity:.72}}
 
+.profile-reset-link{margin-top:6px;color:var(--red-2);border-bottom:0}.profile-reset-link>span>svg{color:var(--red-2)}.profile-reset-link small{color:#a8766d}
+
 @media (max-width: 760px) {
   html, body { background: #eee8df; }
   .app-stage { min-height: 100dvh; padding: 6px; display: flex; }
