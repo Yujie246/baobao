@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { analysisBabyProfileSchema } from "../../analysis/schemas";
 import { processAnalysisJob } from "../../analysis/server/process-job";
+import { claimLocalUpload } from "../../analysis/server/local-uploads";
 import { saveJob, saveUploadedVideo, type VideoSource } from "../../analysis/server/storage";
 
 export const runtime = "nodejs";
@@ -27,8 +28,18 @@ export async function POST(request: Request) {
       profileValue = JSON.parse(String(form.get("babyProfile") || "null"));
       video = await saveUploadedVideo(jobId, file);
     } else {
-      const body = await request.json() as { video?: { url?: string; name?: string; contentType?: string; size?: number; kind?: "blob" | "remote" }; babyProfile?: unknown };
+      const body = await request.json() as { video?: { url?: string; uploadId?: string; name?: string; contentType?: string; size?: number; kind?: "blob" | "remote" | "local-upload" }; babyProfile?: unknown };
       profileValue = body.babyProfile;
+      const profile = analysisBabyProfileSchema.parse(profileValue);
+      if (body.video?.kind === "local-upload") {
+        if (!body.video.uploadId) return NextResponse.json({ error: "本地上传任务无效" }, { status: 400 });
+        video = await claimLocalUpload(jobId, body.video.uploadId);
+        const now = Date.now();
+        await saveJob({ jobId, status: "queued", progress: 5, stageText: "任务已创建，准备分析", error: null, createdAt: now, updatedAt: now, profile, video });
+        const task = processAnalysisJob(jobId);
+        if (process.env.VERCEL) waitUntil(task); else void task;
+        return NextResponse.json({ jobId, status: "queued" }, { status: 202 });
+      }
       const value = body.video?.url;
       const size = Number(body.video?.size || 0);
       if (!value || !/^https:\/\//.test(value)) return NextResponse.json({ error: "视频地址无效" }, { status: 400 });

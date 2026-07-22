@@ -21,6 +21,29 @@ async function errorMessage(response: Response) {
   return payload?.error || `请求失败（${response.status}）`;
 }
 
+async function uploadVideoInChunks(file: File, onUploadProgress?: (percent: number) => void) {
+  const initResponse = await fetch("/api/local-uploads", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: file.name, contentType: file.type, size: file.size }),
+  });
+  if (!initResponse.ok) throw new Error(await errorMessage(initResponse));
+  const init = await initResponse.json() as { uploadId: string; chunkSize: number; chunkCount: number };
+  for (let part = 0; part < init.chunkCount; part += 1) {
+    const start = part * init.chunkSize;
+    const response = await fetch(`/api/local-uploads/${encodeURIComponent(init.uploadId)}/parts/${part}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/octet-stream" },
+      body: file.slice(start, Math.min(file.size, start + init.chunkSize)),
+    });
+    if (!response.ok) throw new Error(await errorMessage(response));
+    onUploadProgress?.(Math.round(((part + 1) / init.chunkCount) * 100));
+  }
+  const completeResponse = await fetch(`/api/local-uploads/${encodeURIComponent(init.uploadId)}/complete`, { method: "POST" });
+  if (!completeResponse.ok) throw new Error(await errorMessage(completeResponse));
+  return completeResponse.json() as Promise<{ uploadId: string; name: string; contentType: string; size: number }>;
+}
+
 export async function createAnalysisJob(file: File, profile: BabyProfile, onUploadProgress?: (percent: number) => void) {
   let response: Response;
   const babyProfile = toAnalysisProfile(profile);
@@ -37,10 +60,12 @@ export async function createAnalysisJob(file: File, profile: BabyProfile, onUplo
       body: JSON.stringify({ video: { kind: "blob", url: blob.url, name: file.name, contentType: file.type, size: file.size }, babyProfile }),
     });
   } else {
-    const form = new FormData();
-    form.set("video", file);
-    form.set("babyProfile", JSON.stringify(babyProfile));
-    response = await fetch("/api/analysis-jobs", { method: "POST", body: form });
+    const localUpload = await uploadVideoInChunks(file, onUploadProgress);
+    response = await fetch("/api/analysis-jobs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ video: { kind: "local-upload", ...localUpload }, babyProfile }),
+    });
   }
   if (!response.ok) throw new Error(await errorMessage(response));
   return response.json() as Promise<{ jobId: string; status: "queued" }>;
