@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { analysisBabyProfileSchema } from "../../analysis/schemas";
 import { buildBabyAgentSystemPrompt } from "../../agent/prompt";
+import { buildCookingAgentSystemPrompt } from "../../cooking/prompt";
+import { loadJob } from "../../analysis/server/storage";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -15,6 +17,14 @@ const requestSchema = z.object({
     text: z.string().trim().min(1).max(500),
   })).min(1).max(12),
   babyProfile: analysisBabyProfileSchema,
+  cookingContext: z.object({
+    jobId: z.string().uuid(),
+    stepIndex: z.number().int().min(0).max(100),
+    prepared: z.boolean(),
+    completedStepIds: z.array(z.string().min(1)).max(100),
+    timerDurationSeconds: z.number().int().min(10).max(14_400).nullable(),
+    timerRemainingSeconds: z.number().int().min(0).max(14_400).nullable(),
+  }).optional(),
 });
 
 function errorResponse(message: string, status: number) {
@@ -38,15 +48,26 @@ export async function POST(request: Request) {
 
   try {
     const input = requestSchema.parse(await request.json());
+    let systemPrompt = buildBabyAgentSystemPrompt(input.babyProfile);
+    if (input.cookingContext) {
+      const job = await loadJob(input.cookingContext.jobId);
+      if (!job) return errorResponse("陪做任务不存在，请返回结果页重新进入", 404);
+      if (job.status !== "completed" || !job.result) return errorResponse("分析结果尚未准备好", 409);
+      try {
+        systemPrompt = buildCookingAgentSystemPrompt(input.babyProfile, job.result, input.cookingContext);
+      } catch {
+        return errorResponse("当前陪做步骤无效，请返回结果页重新进入", 400);
+      }
+    }
     const client = new OpenAI({ apiKey, baseURL, timeout: 35_000, maxRetries: 0 });
     const stream = await client.chat.completions.create({
       model,
       messages: [
-        { role: "system", content: buildBabyAgentSystemPrompt(input.babyProfile) },
+        { role: "system", content: systemPrompt },
         ...input.messages.map((message) => ({ role: message.role, content: message.text })),
       ],
       temperature: 0.25,
-      max_tokens: 500,
+      max_tokens: input.cookingContext ? 350 : 500,
       stream: true,
       thinking: { type: "disabled" },
     } as OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming & { thinking: { type: "disabled" } }, { signal: request.signal });

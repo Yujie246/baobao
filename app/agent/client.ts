@@ -2,17 +2,26 @@ import type { BabyProfile } from "../types";
 import { toAnalysisProfile } from "../analysis/profile";
 
 export type BabyAgentMessage = { role: "assistant" | "user"; text: string };
+export type CookingAgentContext = {
+  jobId: string;
+  stepIndex: number;
+  prepared: boolean;
+  completedStepIds: string[];
+  timerDurationSeconds: number | null;
+  timerRemainingSeconds: number | null;
+};
 
 export async function streamBabyAgent(
   messages: BabyAgentMessage[],
   profile: BabyProfile,
   onDelta: (delta: string) => void,
   signal?: AbortSignal,
+  cookingContext?: CookingAgentContext,
 ) {
   const response = await fetch("/api/agent-chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, babyProfile: toAnalysisProfile(profile) }),
+    body: JSON.stringify({ messages, babyProfile: toAnalysisProfile(profile), cookingContext }),
     signal,
   });
 

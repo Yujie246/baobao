@@ -1,0 +1,1177 @@
+{
+  "meta": {
+    "dataSource": "mock",
+    "fixtureId": "mock-test-video-1",
+    "sourceName": "测试1.mp4",
+    "sourceJobId": "8dc092ac-6c3d-4f4e-9b8d-a2473737f9ac",
+    "capturedAt": "2026-07-22T22:18:34.786Z",
+    "profile": {
+      "name": "满满",
+      "months": 10,
+      "correctedMonths": null,
+      "premature": false,
+      "stage": "soft-lumps",
+      "avoidFoods": [],
+      "triedFoods": [],
+      "feedingSignals": [],
+      "note": ""
+    }
+  },
+  "result": {
+    "统一方案": {
+      "verdict": {
+        "title": "宝宝版番茄肉酱青菜焖饭",
+        "status": "调整后可以做",
+        "headline": "确认猪肉丸配料并调整质地，更适合10月龄宝宝",
+        "summary": "原做法中的大米、小米、番茄和生菜可以保留。最重要的调整是：需确认冷冻猪肉丸是否含盐或复杂添加剂；将肉末进一步处理得更细碎以适应10月龄宝宝的咀嚼能力；确保所有食材软烂易压碎。",
+        "profile_summary": "满满，10月龄，处于尝试小颗粒软食阶段（soft-lumps）。档案未记录过敏史及已尝试食物，需按新食材引入原则谨慎操作。"
+      },
+      "source_summary": {
+        "title": "11月龄宝宝晚餐：番茄肉酱青菜焖饭",
+        "summary": "视频展示了使用草莓番茄、冷冻猪肉丸、大米、小米和生菜制作焖饭的过程。先蒸熟肉丸并捣碎，番茄去皮切丁炒出汁后与肉末混合，再与泡好的米和水一起放入炖盅，选择“宝宝粥”模式炖煮1小时，中途加入切碎的生菜。成品软烂湿润，由成人勺喂。",
+        "recipe_profile": {
+          "food_type": "主食菜肴合一",
+          "dominant_texture": "软烂湿润，含细小颗粒",
+          "particle_composition": "有肉眼可见的蔬菜碎和肉末颗粒",
+          "food_form": "糊状至软饭状混合物",
+          "feeding_method": "成人勺喂",
+          "feeding_posture": "宝宝坐餐椅进食",
+          "final_portion": "约212克"
+        }
+      },
+      "checks": [
+        {
+          "check_id": "ingredients_allergy",
+          "dimension": "食材与过敏",
+          "impact": "confirm",
+          "source_fact": "原视频使用了冷冻猪肉丸，但未展示其具体配料表，未知是否含有盐、糖或其他添加剂。",
+          "baby_context": "档案未确认满满对猪肉或常见过敏原的反应，也未记录既往尝试史。",
+          "decision": "执行前需确认肉丸成分",
+          "action": "请检查冷冻猪肉丸包装背后的配料表，确保无盐、无糖、无复杂添加剂。若无法确认，建议改用新鲜猪瘦肉自行剁碎制作。",
+          "evidence_ids": [
+            "E-ING-04"
+          ]
+        },
+        {
+          "check_id": "new_food",
+          "dimension": "新食材引入",
+          "impact": "confirm",
+          "source_fact": "原视频同餐引入了大米、小米、番茄、猪肉和生菜五种主要食材。",
+          "baby_context": "档案未确认满满是否已单独尝试过上述每种食材。",
+          "decision": "若其中有未尝试过的食材，建议拆分引入",
+          "action": "如果满满之前没吃过番茄或生菜，建议先单独少量尝试这两种蔬菜，观察3天无过敏反应后，再与肉类和谷物混合食用。",
+          "evidence_ids": [
+            "E-ING-01",
+            "E-ING-05"
+          ]
+        },
+        {
+          "check_id": "seasoning",
+          "dimension": "调味",
+          "impact": "change",
+          "source_fact": "视频炒制过程中加入了食用油，未额外添加盐或糖，但肉丸本身可能含盐。",
+          "baby_context": "满满10月龄，应保持辅食原味，避免额外盐糖摄入。",
+          "decision": "依赖食材本味，警惕隐形盐",
+          "action": "不要额外添加任何盐、酱油或调味品。如果使用的肉丸含盐，请减少用量或换用无盐鲜肉。",
+          "evidence_ids": [
+            "E-SEA-01"
+          ]
+        },
+        {
+          "check_id": "cooking",
+          "dimension": "熟制",
+          "impact": "none",
+          "source_fact": "视频采用电炖锅“宝宝粥”模式炖煮1小时，并预先蒸熟了肉丸。",
+          "baby_context": "宝宝消化系统尚未完全成熟，食物需彻底熟透。",
+          "decision": "保留原视频的长时间炖煮方式",
+          "action": "保持炖煮1小时的设定，确保米粒开花、肉质软烂，达到入口即化的程度。",
+          "evidence_ids": [
+            "E-COOK-01"
+          ]
+        },
+        {
+          "check_id": "texture",
+          "dimension": "质地",
+          "impact": "change",
+          "source_fact": "视频中将肉丸用筷子捣碎，成品为软烂颗粒状。",
+          "baby_context": "满满10月龄，处于从泥糊向小颗粒过渡的阶段，需要能牙床压碎的质地。",
+          "decision": "进一步细化肉末质地",
+          "action": "在捣碎肉丸后，建议再用刀背或研磨碗进一步处理成更细的肉糜，确保没有大块纤维，方便宝宝吞咽和消化。",
+          "evidence_ids": [
+            "E-TEX-01",
+            "E-TEX-03"
+          ]
+        },
+        {
+          "check_id": "size_shape",
+          "dimension": "大小形状",
+          "impact": "change",
+          "source_fact": "视频中番茄切成约1厘米见方的小丁，生菜切成细碎条状。",
+          "baby_context": "10月龄宝宝虽可尝试小颗粒，但1厘米的番茄皮即使去皮仍可能有韧性。",
+          "decision": "缩小蔬菜颗粒尺寸",
+          "action": "番茄去皮后切得更碎一些（约0.5厘米或更小），生菜也要切得极碎，避免长纤维缠绕导致呛咳。",
+          "evidence_ids": [
+            "E-SIZE-01",
+            "E-SIZE-02"
+          ]
+        },
+        {
+          "check_id": "eating_ability",
+          "dimension": "进食能力",
+          "impact": "confirm",
+          "source_fact": "视频中11月龄宝宝能熟练咀嚼并吞咽软烂颗粒。",
+          "baby_context": "档案未确认满满当前的具体咀嚼能力和吞咽协调性。",
+          "decision": "根据宝宝实际表现调整喂食速度",
+          "action": "初次尝试时，请先喂一小勺，观察满满是否能顺利用舌头搅拌和吞咽。如果表现出干呕或吐出，说明质地仍偏粗，需再打碎或加汤煮软。",
+          "evidence_ids": [
+            "E-PROFILE-02",
+            "E-TEX-03"
+          ]
+        },
+        {
+          "check_id": "feeding",
+          "dimension": "喂养方式",
+          "impact": "none",
+          "source_fact": "视频展示成人用勺子喂食，宝宝坐在餐椅上。",
+          "baby_context": "10月龄宝宝进食时需要全程看护。",
+          "decision": "保持勺喂并全程看护",
+          "action": "喂食时让宝宝坐直在餐椅中，大人全程陪同，不逗笑、不强迫进食，关注宝宝的饱足信号。",
+          "evidence_ids": [
+            "E-FEED-01",
+            "E-FEED-02"
+          ]
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "大米与小米",
+          "source": {
+            "amount": "总重约38克",
+            "preparation": "混合浸泡",
+            "observation": "画面展示量杯中的米混合物"
+          },
+          "baby": {
+            "amount": "约20-25克（干重）",
+            "preparation": "提前浸泡1小时以上，便于煮烂"
+          },
+          "decision": "保留",
+          "evidence_ids": [
+            "E-ING-01"
+          ]
+        },
+        {
+          "name": "猪肉",
+          "source": {
+            "amount": "约2-3颗冷冻肉丸",
+            "preparation": "蒸熟后捣碎",
+            "observation": "画面展示冷冻肉丸蒸熟后夹碎"
+          },
+          "baby": {
+            "amount": "约20-30克",
+            "preparation": "若用成品肉丸需确认无盐；建议改用新鲜瘦肉剁成细泥"
+          },
+          "decision": "调整",
+          "evidence_ids": [
+            "E-ING-04"
+          ]
+        },
+        {
+          "name": "番茄",
+          "source": {
+            "amount": "1-2颗草莓番茄",
+            "preparation": "去皮切丁",
+            "observation": "画面展示削皮后切丁"
+          },
+          "baby": {
+            "amount": "半个至1个",
+            "preparation": "彻底去皮，切成极小的碎末"
+          },
+          "decision": "调整",
+          "evidence_ids": [
+            "E-ING-01",
+            "E-ING-04"
+          ]
+        },
+        {
+          "name": "生菜",
+          "source": {
+            "amount": "适量",
+            "preparation": "切碎",
+            "observation": "画面展示撒入切碎的生菜叶"
+          },
+          "baby": {
+            "amount": "1-2片叶子",
+            "preparation": "只取嫩叶部分，切成细丝后再剁碎"
+          },
+          "decision": "保留",
+          "evidence_ids": [
+            "E-ING-01"
+          ]
+        },
+        {
+          "name": "食用油",
+          "source": {
+            "amount": "少量",
+            "preparation": "炒制时使用",
+            "observation": "画面展示倒油入锅"
+          },
+          "baby": {
+            "amount": "约2-3克",
+            "preparation": "选用核桃油或亚麻籽油等富含α-亚麻酸的油"
+          },
+          "decision": "保留",
+          "evidence_ids": [
+            "E-ING-01",
+            "E-ING-04"
+          ]
+        }
+      ],
+      "steps": [
+        {
+          "step_id": "S01",
+          "source_action_id": "A02",
+          "title": "准备食材",
+          "start_time": "00:00:04.000",
+          "end_time": "00:00:16.000",
+          "keyframe_time": "00:00:08.000",
+          "keyframe_description": "桌面上摆放着电子秤、量杯装的大米小米、一盒草莓番茄和一碗冷冻猪肉丸。",
+          "image_url": "/mocks/mock-test-video-1/frames/S01.jpg",
+          "timing": null,
+          "timer_seconds": null,
+          "action": "称量并清洗食材",
+          "instruction": "取适量大米和小米混合洗净，用清水浸泡至少1小时。番茄洗净，生菜洗净沥干。",
+          "completion_check": "米吸水变白，蔬菜洁净",
+          "personal_reminder": "如果满满第一次吃番茄或生菜，请确保之前已单独尝试过。",
+          "mapping_note": "对应原视频中的这一步",
+          "quick_actions": [],
+          "common_questions": []
+        },
+        {
+          "step_id": "S02",
+          "source_action_id": "A04",
+          "title": "处理番茄",
+          "start_time": "00:00:26.000",
+          "end_time": "00:00:29.000",
+          "keyframe_time": "00:00:28.000",
+          "keyframe_description": "使用削皮刀去除番茄表皮，随后在白色砧板上用刀将去皮番茄切成小丁。",
+          "image_url": "/mocks/mock-test-video-1/frames/S02.jpg",
+          "timing": null,
+          "timer_seconds": null,
+          "action": "番茄去皮切极碎",
+          "instruction": "用开水烫一下番茄以便去皮，去皮后将果肉切成非常细小的碎末，越小越好。",
+          "completion_check": "无明显大块果皮和果肉",
+          "personal_reminder": "10月龄宝宝对纤维敏感，切得越碎越安全。",
+          "mapping_note": "对应原视频中的这一步",
+          "quick_actions": [],
+          "common_questions": []
+        },
+        {
+          "step_id": "S03",
+          "source_action_id": "A03",
+          "title": "处理肉类",
+          "start_time": "00:00:17.000",
+          "end_time": "00:00:25.000",
+          "keyframe_time": "00:00:20.000",
+          "keyframe_description": "将装有肉丸的小碗放入绿色电蒸锅中蒸制。",
+          "image_url": "/mocks/mock-test-video-1/frames/S03.jpg",
+          "timing": "约 10 分钟",
+          "timer_seconds": 600,
+          "action": "蒸熟并细化肉类",
+          "instruction": "将猪肉丸（或新鲜肉泥团成的丸子）放入蒸锅蒸熟。取出后，用研磨碗或刀背将其处理成细腻的肉糜。",
+          "completion_check": "肉质松散无大块",
+          "personal_reminder": "务必确认肉丸内部完全熟透且无盐。",
+          "mapping_note": "对应原视频中的这一步",
+          "quick_actions": [],
+          "common_questions": []
+        },
+        {
+          "step_id": "S04",
+          "source_action_id": "A06",
+          "title": "炒制底料",
+          "start_time": "00:00:35.000",
+          "end_time": "00:00:46.000",
+          "keyframe_time": "00:00:40.000",
+          "keyframe_description": "平底锅加热后倒入食用油，先放入番茄丁翻炒出汁，再加入碎肉末一同翻炒均匀。",
+          "image_url": "/mocks/mock-test-video-1/frames/S04.jpg",
+          "timing": "约 3 分钟",
+          "timer_seconds": 180,
+          "action": "少油炒香番茄肉糜",
+          "instruction": "锅中刷薄薄一层油，倒入番茄碎小火炒出红汤，加入肉糜翻炒均匀。",
+          "completion_check": "番茄化成酱汁状",
+          "personal_reminder": "火要小，避免焦糊。",
+          "mapping_note": "对应原视频中的这一步",
+          "quick_actions": [],
+          "common_questions": []
+        },
+        {
+          "step_id": "S05",
+          "source_action_id": "A07",
+          "title": "混合入锅",
+          "start_time": "00:00:47.000",
+          "end_time": "00:00:56.000",
+          "keyframe_time": "00:00:52.000",
+          "keyframe_description": "将炒好的番茄肉酱倒入装有泡好米的白色陶瓷炖盅内，随后加入清水。",
+          "image_url": "/mocks/mock-test-video-1/frames/S05.jpg",
+          "timing": null,
+          "timer_seconds": null,
+          "action": "米酱混合加水",
+          "instruction": "将泡好的米沥水放入炖盅，倒入炒好的番茄肉酱，加入清水。水量约为米的1.5-2倍，喜欢稀一点可多加水。",
+          "completion_check": "水面刚没过食材",
+          "personal_reminder": "水多煮出来更软烂，适合刚开始尝试颗粒的宝宝。",
+          "mapping_note": "对应原视频中的这一步",
+          "quick_actions": [],
+          "common_questions": []
+        },
+        {
+          "step_id": "S06",
+          "source_action_id": "A08",
+          "title": "开始炖煮",
+          "start_time": "00:00:57.000",
+          "end_time": "00:01:00.000",
+          "keyframe_time": "00:00:58.000",
+          "keyframe_description": "将陶瓷炖盅放入白色电炖锅主机中，盖上盖子，手指按压面板选择“宝宝粥”模式。",
+          "image_url": "/mocks/mock-test-video-1/frames/S06.jpg",
+          "timing": "约 1 小时",
+          "timer_seconds": 3600,
+          "action": "启动炖煮程序",
+          "instruction": "盖好盖子，选择电炖锅的“宝宝粥”或“精煮”模式，设定时间为1小时。",
+          "completion_check": "程序启动运行中",
+          "personal_reminder": "确保炖盅放置平稳。",
+          "mapping_note": "对应原视频中的这一步",
+          "quick_actions": [],
+          "common_questions": []
+        },
+        {
+          "step_id": "S07",
+          "source_action_id": "A09",
+          "title": "加入青菜",
+          "start_time": "00:01:01.000",
+          "end_time": "00:01:11.000",
+          "keyframe_time": "00:01:06.000",
+          "keyframe_description": "打开炖锅盖，将切碎的绿色生菜叶撒入炖盅内的米饭上。",
+          "image_url": "/mocks/mock-test-video-1/frames/S07.jpg",
+          "timing": "约 10 分钟",
+          "timer_seconds": 600,
+          "action": "最后加入生菜碎",
+          "instruction": "在炖煮结束前10分钟，开盖将切得极碎的生菜叶撒入，轻轻搅拌一下，盖回继续煮。",
+          "completion_check": "生菜变色变软",
+          "personal_reminder": "青菜煮太久会发黄，最后放能保留营养和色泽。",
+          "mapping_note": "对应原视频中的这一步",
+          "quick_actions": [],
+          "common_questions": []
+        },
+        {
+          "step_id": "S08",
+          "source_action_id": "A10",
+          "title": "出锅晾凉",
+          "start_time": "00:01:12.000",
+          "end_time": "00:01:20.000",
+          "keyframe_time": "00:01:18.000",
+          "keyframe_description": "炖煮结束后取出陶瓷炖盅，用勺子将软饭盛入放在电子秤上的不锈钢碗中。",
+          "image_url": "/mocks/mock-test-video-1/frames/S08.jpg",
+          "timing": "约 5 分钟",
+          "timer_seconds": 300,
+          "action": "盛出并降温",
+          "instruction": "将焖饭盛入碗中，搅拌均匀散热。喂食前务必用手腕内侧测试温度，确保不烫嘴。",
+          "completion_check": "温度适宜（约37-40℃）",
+          "personal_reminder": "宝宝口腔娇嫩，宁可稍凉不可烫。",
+          "mapping_note": "对应原视频中的这一步",
+          "quick_actions": [],
+          "common_questions": []
+        }
+      ],
+      "serving_checks": [
+        "确认猪肉丸配料表无盐、无添加剂，或已替换为自制无盐肉泥。",
+        "确认满满此前已单独尝试过番茄和生菜，无过敏反应。",
+        "喂食前再次检查食物温度，确保温热不烫。",
+        "观察满满进食时的吞咽情况，如有干呕立即停止并调整质地。"
+      ]
+    },
+    "宝宝版本": {
+      "title": "宝宝版番茄肉酱青菜焖饭",
+      "conclusion": "原做法中的大米、小米、番茄和生菜可以保留。最重要的调整是：需确认冷冻猪肉丸是否含盐或复杂添加剂；将肉末进一步处理得更细碎以适应10月龄宝宝的咀嚼能力；确保所有食材软烂易压碎。",
+      "conclusion_status": "调整后可以做",
+      "conclusion_card": {
+        "headline": "确认猪肉丸配料并调整质地，更适合10月龄宝宝",
+        "reassurance": "原做法中的大米、小米、番茄和生菜可以保留。最重要的调整是：需确认冷冻猪肉丸是否含盐或复杂添加剂；将肉末进一步处理得更细碎以适应10月龄宝宝的咀嚼能力；确保所有食材软烂易压碎。",
+        "adjustments": [
+          "请检查冷冻猪肉丸包装背后的配料表，确保无盐、无糖、无复杂添加剂。若无法确认，建议改用新鲜猪瘦肉自行剁碎制作。",
+          "如果满满之前没吃过番茄或生菜，建议先单独少量尝试这两种蔬菜，观察3天无过敏反应后，再与肉类和谷物混合食用。",
+          "不要额外添加任何盐、酱油或调味品。如果使用的肉丸含盐，请减少用量或换用无盐鲜肉。"
+        ],
+        "confirmation": "请检查冷冻猪肉丸包装背后的配料表，确保无盐、无糖、无复杂添加剂。若无法确认，建议改用新鲜猪瘦肉自行剁碎制作。"
+      },
+      "profile_summary": "满满，10月龄，处于尝试小颗粒软食阶段（soft-lumps）。档案未记录过敏史及已尝试食物，需按新食材引入原则谨慎操作。",
+      "key_judgments": [
+        {
+          "title": "质地匹配度",
+          "conclusion": "进一步细化肉末质地",
+          "fact_basis": "视频中将肉丸用筷子捣碎，成品为软烂颗粒状。；满满10月龄，处于从泥糊向小颗粒过渡的阶段，需要能牙床压碎的质地。",
+          "reason": "在捣碎肉丸后，建议再用刀背或研磨碗进一步处理成更细的肉糜，确保没有大块纤维，方便宝宝吞咽和消化。",
+          "evidence_ids": [
+            "E-TEX-01",
+            "E-TEX-03"
+          ],
+          "status": "需调整"
+        },
+        {
+          "title": "复合食材安全性",
+          "conclusion": "执行前需确认肉丸成分",
+          "fact_basis": "原视频使用了冷冻猪肉丸，但未展示其具体配料表，未知是否含有盐、糖或其他添加剂。；档案未确认满满对猪肉或常见过敏原的反应，也未记录既往尝试史。",
+          "reason": "请检查冷冻猪肉丸包装背后的配料表，确保无盐、无糖、无复杂添加剂。若无法确认，建议改用新鲜猪瘦肉自行剁碎制作。",
+          "evidence_ids": [
+            "E-ING-04"
+          ],
+          "status": "待确认"
+        },
+        {
+          "title": "新食材引入原则",
+          "conclusion": "若其中有未尝试过的食材，建议拆分引入",
+          "fact_basis": "原视频同餐引入了大米、小米、番茄、猪肉和生菜五种主要食材。；档案未确认满满是否已单独尝试过上述每种食材。",
+          "reason": "如果满满之前没吃过番茄或生菜，建议先单独少量尝试这两种蔬菜，观察3天无过敏反应后，再与肉类和谷物混合食用。",
+          "evidence_ids": [
+            "E-ING-01",
+            "E-ING-05"
+          ],
+          "status": "待确认"
+        },
+        {
+          "title": "基础进食能力",
+          "conclusion": "根据宝宝实际表现调整喂食速度",
+          "fact_basis": "视频中11月龄宝宝能熟练咀嚼并吞咽软烂颗粒。；档案未确认满满当前的具体咀嚼能力和吞咽协调性。",
+          "reason": "初次尝试时，请先喂一小勺，观察满满是否能顺利用舌头搅拌和吞咽。如果表现出干呕或吐出，说明质地仍偏粗，需再打碎或加汤煮软。",
+          "evidence_ids": [
+            "E-PROFILE-02",
+            "E-TEX-03"
+          ],
+          "status": "待确认"
+        },
+        {
+          "title": "过敏风险排查",
+          "conclusion": "执行前需确认肉丸成分",
+          "fact_basis": "原视频使用了冷冻猪肉丸，但未展示其具体配料表，未知是否含有盐、糖或其他添加剂。；档案未确认满满对猪肉或常见过敏原的反应，也未记录既往尝试史。",
+          "reason": "请检查冷冻猪肉丸包装背后的配料表，确保无盐、无糖、无复杂添加剂。若无法确认，建议改用新鲜猪瘦肉自行剁碎制作。",
+          "evidence_ids": [
+            "E-ING-04"
+          ],
+          "status": "待确认"
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "大米与小米",
+          "amount": "约20-25克（干重）",
+          "preparation": "提前浸泡1小时以上，便于煮烂",
+          "status": "保留",
+          "evidence_ids": [
+            "E-ING-01"
+          ]
+        },
+        {
+          "name": "猪肉",
+          "amount": "约20-30克",
+          "preparation": "若用成品肉丸需确认无盐；建议改用新鲜瘦肉剁成细泥",
+          "status": "调整",
+          "evidence_ids": [
+            "E-ING-04"
+          ]
+        },
+        {
+          "name": "番茄",
+          "amount": "半个至1个",
+          "preparation": "彻底去皮，切成极小的碎末",
+          "status": "调整",
+          "evidence_ids": [
+            "E-ING-01",
+            "E-ING-04"
+          ]
+        },
+        {
+          "name": "生菜",
+          "amount": "1-2片叶子",
+          "preparation": "只取嫩叶部分，切成细丝后再剁碎",
+          "status": "保留",
+          "evidence_ids": [
+            "E-ING-01"
+          ]
+        },
+        {
+          "name": "食用油",
+          "amount": "约2-3克",
+          "preparation": "选用核桃油或亚麻籽油等富含α-亚麻酸的油",
+          "status": "保留",
+          "evidence_ids": [
+            "E-ING-01",
+            "E-ING-04"
+          ]
+        }
+      ],
+      "dimensions": [
+        {
+          "dimension": "食材",
+          "conclusion": "执行前需确认肉丸成分",
+          "fact_basis": "原视频使用了冷冻猪肉丸，但未展示其具体配料表，未知是否含有盐、糖或其他添加剂。；档案未确认满满对猪肉或常见过敏原的反应，也未记录既往尝试史。",
+          "reason": "请检查冷冻猪肉丸包装背后的配料表，确保无盐、无糖、无复杂添加剂。若无法确认，建议改用新鲜猪瘦肉自行剁碎制作。",
+          "status": "待确认",
+          "evidence_ids": [
+            "E-ING-04"
+          ]
+        },
+        {
+          "dimension": "调味",
+          "conclusion": "依赖食材本味，警惕隐形盐",
+          "fact_basis": "视频炒制过程中加入了食用油，未额外添加盐或糖，但肉丸本身可能含盐。；满满10月龄，应保持辅食原味，避免额外盐糖摄入。",
+          "reason": "不要额外添加任何盐、酱油或调味品。如果使用的肉丸含盐，请减少用量或换用无盐鲜肉。",
+          "status": "需调整",
+          "evidence_ids": [
+            "E-SEA-01"
+          ]
+        },
+        {
+          "dimension": "熟制",
+          "conclusion": "保留原视频的长时间炖煮方式",
+          "fact_basis": "视频采用电炖锅“宝宝粥”模式炖煮1小时，并预先蒸熟了肉丸。；宝宝消化系统尚未完全成熟，食物需彻底熟透。",
+          "reason": "保持炖煮1小时的设定，确保米粒开花、肉质软烂，达到入口即化的程度。",
+          "status": "适合",
+          "evidence_ids": [
+            "E-COOK-01"
+          ]
+        },
+        {
+          "dimension": "质地",
+          "conclusion": "进一步细化肉末质地",
+          "fact_basis": "视频中将肉丸用筷子捣碎，成品为软烂颗粒状。；满满10月龄，处于从泥糊向小颗粒过渡的阶段，需要能牙床压碎的质地。",
+          "reason": "在捣碎肉丸后，建议再用刀背或研磨碗进一步处理成更细的肉糜，确保没有大块纤维，方便宝宝吞咽和消化。",
+          "status": "需调整",
+          "evidence_ids": [
+            "E-TEX-01",
+            "E-TEX-03"
+          ]
+        },
+        {
+          "dimension": "大小形状",
+          "conclusion": "缩小蔬菜颗粒尺寸",
+          "fact_basis": "视频中番茄切成约1厘米见方的小丁，生菜切成细碎条状。；10月龄宝宝虽可尝试小颗粒，但1厘米的番茄皮即使去皮仍可能有韧性。",
+          "reason": "番茄去皮后切得更碎一些（约0.5厘米或更小），生菜也要切得极碎，避免长纤维缠绕导致呛咳。",
+          "status": "需调整",
+          "evidence_ids": [
+            "E-SIZE-01",
+            "E-SIZE-02"
+          ]
+        },
+        {
+          "dimension": "喂养方式",
+          "conclusion": "保持勺喂并全程看护",
+          "fact_basis": "视频展示成人用勺子喂食，宝宝坐在餐椅上。；10月龄宝宝进食时需要全程看护。",
+          "reason": "喂食时让宝宝坐直在餐椅中，大人全程陪同，不逗笑、不强迫进食，关注宝宝的饱足信号。",
+          "status": "适合",
+          "evidence_ids": [
+            "E-FEED-01",
+            "E-FEED-02"
+          ]
+        }
+      ],
+      "feeding_check": [
+        "确认猪肉丸配料表无盐、无添加剂，或已替换为自制无盐肉泥。",
+        "确认满满此前已单独尝试过番茄和生菜，无过敏反应。",
+        "喂食前再次检查食物温度，确保温热不烫。",
+        "观察满满进食时的吞咽情况，如有干呕立即停止并调整质地。"
+      ]
+    },
+    "视频解析": {
+      "title": "11月龄宝宝晚餐：番茄肉酱青菜焖饭",
+      "summary": "视频展示了使用草莓番茄、冷冻猪肉丸、大米、小米和生菜制作焖饭的过程。先蒸熟肉丸并捣碎，番茄去皮切丁炒出汁后与肉末混合，再与泡好的米和水一起放入炖盅，选择“宝宝粥”模式炖煮1小时，中途加入切碎的生菜。成品软烂湿润，由成人勺喂。",
+      "facts": {
+        "video_title": "11月龄宝宝晚餐：番茄肉酱青菜焖饭",
+        "duration_seconds": 87,
+        "summary": "视频展示了为11个月大宝宝制作番茄肉酱青菜焖饭的全过程。从准备草莓番茄、猪肉丸和大米小米开始，经过蒸肉丸、泡米、炒制番茄肉酱、混合食材入锅炖煮，最后加入切碎的生菜。成品软烂适中，宝宝吃得津津有味并光盘。",
+        "actions": [
+          {
+            "action_id": "A01",
+            "title": "展示成品与宝宝进食",
+            "start_time": "00:00:00.000",
+            "end_time": "00:00:03.000",
+            "keyframe_time": "00:00:01.000",
+            "keyframe_description": "画面显示一个不锈钢碗内盛有混合了蔬菜和肉末的软饭，随后镜头切换至一名穿着围兜的宝宝正在被喂食，碗已见底。",
+            "observed_action": "展示做好的焖饭及宝宝吃完后的空碗状态",
+            "observed_ingredients": [
+              "番茄肉酱青菜焖饭"
+            ],
+            "observed_tools": [
+              "不锈钢碗",
+              "木勺"
+            ],
+            "observed_texture": "软烂颗粒状",
+            "observed_size_shape": null,
+            "observed_seasoning": null,
+            "observed_feeding": "宝宝张嘴接受喂食，表情愉悦",
+            "unknowns": []
+          },
+          {
+            "action_id": "A02",
+            "title": "介绍食材",
+            "start_time": "00:00:04.000",
+            "end_time": "00:00:16.000",
+            "keyframe_time": "00:00:08.000",
+            "keyframe_description": "桌面上摆放着电子秤、量杯装的大米小米、一盒草莓番茄和一碗冷冻猪肉丸。手拿起一颗小番茄展示，随后拿起装有肉丸的小碗。",
+            "observed_action": "展示制作所需的草莓番茄和预先做好的猪肉丸",
+            "observed_ingredients": [
+              "草莓番茄",
+              "猪肉丸",
+              "大米",
+              "小米"
+            ],
+            "observed_tools": [
+              "电子秤",
+              "透明塑料盒",
+              "条纹小碗"
+            ],
+            "observed_texture": null,
+            "observed_size_shape": "小番茄呈圆形红色；肉丸呈灰褐色球状",
+            "observed_seasoning": null,
+            "observed_feeding": null,
+            "unknowns": [
+              "肉丸的具体配料成分"
+            ]
+          },
+          {
+            "action_id": "A03",
+            "title": "蒸肉丸与泡米",
+            "start_time": "00:00:17.000",
+            "end_time": "00:00:25.000",
+            "keyframe_time": "00:00:20.000",
+            "keyframe_description": "将装有肉丸的小碗放入绿色电蒸锅中蒸制。同时展示一个白色陶瓷炖盅，里面浸泡着大米和小米的混合物。",
+            "observed_action": "启动蒸锅蒸肉丸，同时展示浸泡在水中的米",
+            "observed_ingredients": [
+              "猪肉丸",
+              "大米",
+              "小米",
+              "水"
+            ],
+            "observed_tools": [
+              "绿色电蒸锅",
+              "白色陶瓷炖盅"
+            ],
+            "observed_texture": null,
+            "observed_size_shape": null,
+            "observed_seasoning": null,
+            "observed_feeding": null,
+            "unknowns": [
+              "蒸制的具体时长",
+              "米浸泡的具体时长"
+            ]
+          },
+          {
+            "action_id": "A04",
+            "title": "处理番茄",
+            "start_time": "00:00:26.000",
+            "end_time": "00:00:29.000",
+            "keyframe_time": "00:00:28.000",
+            "keyframe_description": "使用削皮刀去除番茄表皮，随后在白色砧板上用刀将去皮番茄切成小丁，放入玻璃碗中备用。",
+            "observed_action": "给番茄去皮并切丁",
+            "observed_ingredients": [
+              "番茄"
+            ],
+            "observed_tools": [
+              "削皮刀",
+              "黑柄厨刀",
+              "白色砧板",
+              "玻璃碗"
+            ],
+            "observed_texture": null,
+            "observed_size_shape": "切成约1厘米见方的小丁",
+            "observed_seasoning": null,
+            "observed_feeding": null,
+            "unknowns": []
+          },
+          {
+            "action_id": "A05",
+            "title": "弄碎肉丸",
+            "start_time": "00:00:30.000",
+            "end_time": "00:00:34.000",
+            "keyframe_time": "00:00:32.000",
+            "keyframe_description": "蒸好的肉丸取出后，用筷子在条纹碗中将其捣碎成肉末状。",
+            "observed_action": "用筷子将蒸熟的肉丸夹碎",
+            "observed_ingredients": [
+              "蒸熟的猪肉丸"
+            ],
+            "observed_tools": [
+              "筷子",
+              "条纹小碗"
+            ],
+            "observed_texture": "松散肉末状",
+            "observed_size_shape": null,
+            "observed_seasoning": null,
+            "observed_feeding": null,
+            "unknowns": []
+          },
+          {
+            "action_id": "A06",
+            "title": "炒制番茄肉酱",
+            "start_time": "00:00:35.000",
+            "end_time": "00:00:46.000",
+            "keyframe_time": "00:00:40.000",
+            "keyframe_description": "平底锅加热后倒入食用油，先放入番茄丁翻炒出汁，再加入碎肉末一同翻炒均匀。",
+            "observed_action": "热锅倒油，依次加入番茄丁和肉末进行翻炒",
+            "observed_ingredients": [
+              "番茄丁",
+              "猪肉末",
+              "食用油"
+            ],
+            "observed_tools": [
+              "红边平底锅",
+              "白色硅胶铲",
+              "电磁炉"
+            ],
+            "observed_texture": null,
+            "observed_size_shape": null,
+            "observed_seasoning": null,
+            "observed_feeding": null,
+            "unknowns": [
+              "油的具体用量",
+              "翻炒的具体火候"
+            ]
+          },
+          {
+            "action_id": "A07",
+            "title": "混合食材入锅",
+            "start_time": "00:00:47.000",
+            "end_time": "00:00:56.000",
+            "keyframe_time": "00:00:52.000",
+            "keyframe_description": "将炒好的番茄肉酱倒入装有泡好米的白色陶瓷炖盅内，随后加入清水，水量刚没过食材表面。",
+            "observed_action": "将炒料倒入米中并加水",
+            "observed_ingredients": [
+              "炒好的番茄肉酱",
+              "泡好的米",
+              "清水"
+            ],
+            "observed_tools": [
+              "白色陶瓷炖盅",
+              "玻璃量杯",
+              "白色硅胶铲"
+            ],
+            "observed_texture": null,
+            "observed_size_shape": null,
+            "observed_seasoning": null,
+            "observed_feeding": null,
+            "unknowns": [
+              "水的具体毫升数"
+            ]
+          },
+          {
+            "action_id": "A08",
+            "title": "设定炖煮程序",
+            "start_time": "00:00:57.000",
+            "end_time": "00:01:00.000",
+            "keyframe_time": "00:00:58.000",
+            "keyframe_description": "将陶瓷炖盅放入白色电炖锅主机中，盖上盖子，手指按压面板选择“宝宝粥”模式，屏幕显示时间设定为1小时。",
+            "observed_action": "启动电炖锅的宝宝粥模式",
+            "observed_ingredients": [],
+            "observed_tools": [
+              "白色电炖锅"
+            ],
+            "observed_texture": null,
+            "observed_size_shape": null,
+            "observed_seasoning": null,
+            "observed_feeding": null,
+            "unknowns": []
+          },
+          {
+            "action_id": "A09",
+            "title": "中途加入青菜",
+            "start_time": "00:01:01.000",
+            "end_time": "00:01:11.000",
+            "keyframe_time": "00:01:06.000",
+            "keyframe_description": "打开炖锅盖，将切碎的绿色生菜叶撒入炖盅内的米饭上，随后重新盖好盖子继续炖煮。",
+            "observed_action": "开盖加入切碎的生菜并盖回",
+            "observed_ingredients": [
+              "切碎的生菜"
+            ],
+            "observed_tools": [
+              "白色电炖锅",
+              "白色砧板"
+            ],
+            "observed_texture": null,
+            "observed_size_shape": "生菜被切成细碎条状",
+            "observed_seasoning": null,
+            "observed_feeding": null,
+            "unknowns": [
+              "加入青菜时的具体剩余烹饪时间"
+            ]
+          },
+          {
+            "action_id": "A10",
+            "title": "出锅称重",
+            "start_time": "00:01:12.000",
+            "end_time": "00:01:20.000",
+            "keyframe_time": "00:01:18.000",
+            "keyframe_description": "炖煮结束后取出陶瓷炖盅，用勺子将软饭盛入放在电子秤上的不锈钢碗中，秤显示重量约为212克。",
+            "observed_action": "盛饭并称重",
+            "observed_ingredients": [
+              "成品焖饭"
+            ],
+            "observed_tools": [
+              "电子秤",
+              "不锈钢碗",
+              "白色勺子",
+              "隔热布"
+            ],
+            "observed_texture": "软烂湿润",
+            "observed_size_shape": null,
+            "observed_seasoning": null,
+            "observed_feeding": null,
+            "unknowns": []
+          },
+          {
+            "action_id": "A11",
+            "title": "喂食宝宝",
+            "start_time": "00:01:21.000",
+            "end_time": "00:01:25.000",
+            "keyframe_time": "00:01:23.000",
+            "keyframe_description": "宝宝坐在餐椅上，大人用木勺喂其吃焖饭，宝宝咀嚼吞咽，画面出现“真香”特效字样。",
+            "observed_action": "给宝宝喂食焖饭",
+            "observed_ingredients": [
+              "成品焖饭"
+            ],
+            "observed_tools": [
+              "木勺",
+              "不锈钢碗",
+              "儿童餐椅"
+            ],
+            "observed_texture": null,
+            "observed_size_shape": null,
+            "observed_seasoning": null,
+            "observed_feeding": "宝宝主动张口进食，咀嚼动作明显",
+            "unknowns": []
+          }
+        ],
+        "global_unknowns": [
+          "视频中未明确说明大米和小米的具体配比克数（仅提及总重约38克）",
+          "未说明食用油的具体种类和品牌（虽瓶身有标签但非重点描述）",
+          "未说明生菜的具体品种（仅称为生菜）"
+        ]
+      },
+      "recipe_profile": {
+        "food_type": "主食菜肴合一",
+        "dominant_texture": "软烂湿润，含细小颗粒",
+        "particle_composition": "有肉眼可见的蔬菜碎和肉末颗粒",
+        "food_form": "糊状至软饭状混合物",
+        "feeding_method": "成人勺喂",
+        "feeding_posture": "宝宝坐餐椅进食",
+        "final_portion": "约212克"
+      },
+      "recognized_ingredients": [
+        {
+          "name": "大米与小米",
+          "amount": "总重约38克",
+          "preparation": "混合浸泡",
+          "observation": "画面展示量杯中的米混合物"
+        },
+        {
+          "name": "猪肉",
+          "amount": "约2-3颗冷冻肉丸",
+          "preparation": "蒸熟后捣碎",
+          "observation": "画面展示冷冻肉丸蒸熟后夹碎"
+        },
+        {
+          "name": "番茄",
+          "amount": "1-2颗草莓番茄",
+          "preparation": "去皮切丁",
+          "observation": "画面展示削皮后切丁"
+        },
+        {
+          "name": "生菜",
+          "amount": "适量",
+          "preparation": "切碎",
+          "observation": "画面展示撒入切碎的生菜叶"
+        },
+        {
+          "name": "食用油",
+          "amount": "少量",
+          "preparation": "炒制时使用",
+          "observation": "画面展示倒油入锅"
+        }
+      ],
+      "required_abilities": [
+        {
+          "title": "吃这道辅食需要的能力",
+          "requirement": "视频中11月龄宝宝能熟练咀嚼并吞咽软烂颗粒。",
+          "profile_comparison": "档案未确认满满当前的具体咀嚼能力和吞咽协调性。",
+          "status": "待确认",
+          "evidence_ids": [
+            "E-PROFILE-02",
+            "E-TEX-03"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "evidence_id": "E-SCOPE-01",
+          "dimension": "喂养方式",
+          "source": "WS/T 678—2020《婴幼儿辅食添加营养指南》",
+          "location": "第1章“范围”，PDF第3页",
+          "summary": "标准适用于健康足月出生、满6至24月龄婴幼儿的辅食添加指导。",
+          "relationship": "限定规则直接适用的人群；早产、特殊疾病或范围外月龄只能参照。"
+        },
+        {
+          "evidence_id": "E-ING-01",
+          "dimension": "食材",
+          "source": "WS/T 678—2020《婴幼儿辅食添加营养指南》",
+          "location": "3.2，PDF第3页",
+          "summary": "辅食种类由单一到多样，每种新食物由少到多，适应3至5天并观察反应。",
+          "relationship": "用于判断同餐多种新食材是否需要拆分引入；未知尝试史只能待确认。"
+        },
+        {
+          "evidence_id": "E-ING-04",
+          "dimension": "食材",
+          "source": "WS/T 821—2023《托育机构质量评估标准》",
+          "location": "7.3.3；附录A PDF第40页",
+          "summary": "明确食物过敏和特殊需求应记录、回避相应食物，并提供替代食物。",
+          "relationship": "必须与宝宝已知过敏史结合，不能因视频出现常见过敏原直接判定过敏。"
+        },
+        {
+          "evidence_id": "E-ING-05",
+          "dimension": "食材",
+          "source": "《中国婴幼儿喂养指南（2022）》",
+          "location": "7至24月龄指南准则2",
+          "summary": "及时引入多样化食物，不盲目回避易过敏食物。",
+          "relationship": "避免把未尝试误写成禁忌；首次引入仍需结合健康状况和既往反应。"
+        },
+        {
+          "evidence_id": "E-SEA-01",
+          "dimension": "调味",
+          "source": "WS/T 678—2020《婴幼儿辅食添加营养指南》",
+          "location": "5.3，PDF第5页",
+          "summary": "辅食保持原味，12月龄内不宜添加盐、糖及刺激性调味品。",
+          "relationship": "用于核对视频明确出现的调味；复合食品配料未知时只能待确认。"
+        },
+        {
+          "evidence_id": "E-COOK-01",
+          "dimension": "熟制",
+          "source": "WS/T 678—2020《婴幼儿辅食添加营养指南》",
+          "location": "5.2，PDF第5页",
+          "summary": "制作过程应清洁卫生、生熟分开，需要熟制的辅食应煮熟煮透。",
+          "relationship": "视频只展示表面状态时必须保留内部熟度无法确认，不能凭外观判定。"
+        },
+        {
+          "evidence_id": "E-TEX-01",
+          "dimension": "质地",
+          "source": "WS/T 678—2020《婴幼儿辅食添加营养指南》",
+          "location": "3.4，PDF第4页",
+          "summary": "辅食质地应由稀到稠、由细到粗，逐步增加硬度和颗粒大小。",
+          "relationship": "要求把视频成品质地与宝宝当前可接受质地和处理表现逐项对照。"
+        },
+        {
+          "evidence_id": "E-TEX-03",
+          "dimension": "质地",
+          "source": "WS/T 678—2020《婴幼儿辅食添加营养指南》",
+          "location": "4.2.4至4.2.5，PDF第4至5页",
+          "summary": "9至12月龄可逐步尝试碎块状和指状食物，质地可用牙床压碎、类似香蕉。",
+          "relationship": "用于对照碎块和手抓食物；能力未知时必须提出待确认项。"
+        },
+        {
+          "evidence_id": "E-SIZE-01",
+          "dimension": "大小形状",
+          "source": "WS/T 678—2020《婴幼儿辅食添加营养指南》",
+          "location": "附录A.2，PDF第6页",
+          "summary": "应避免可能造成哽噎的大块食物，不给婴幼儿整粒花生、腰果等坚果。",
+          "relationship": "结合画面尺寸、软硬度和宝宝能力判断；尺寸不清时写无法确认。"
+        },
+        {
+          "evidence_id": "E-SIZE-02",
+          "dimension": "大小形状",
+          "source": "WS/T 821—2023《托育机构质量评估标准》",
+          "location": "7.3.2；附录A PDF第40页",
+          "summary": "食物应软烂合适，食材加工大小符合婴幼儿发育特点。",
+          "relationship": "在家庭场景作原则参照，并与宝宝档案做个体化对照。"
+        },
+        {
+          "evidence_id": "E-FEED-01",
+          "dimension": "喂养方式",
+          "source": "WS/T 678—2020；《中国婴幼儿喂养指南（2022）》",
+          "location": "WS/T 678 3.7，PDF第4页；7至24月龄指南准则5",
+          "summary": "为保证安全，婴幼儿进食时须有成年人看护。",
+          "relationship": "视频未展示实际喂养时，只能写成人看护情况无法确认。"
+        },
+        {
+          "evidence_id": "E-FEED-02",
+          "dimension": "喂养方式",
+          "source": "WS/T 678—2020；《中国婴幼儿喂养指南（2022）》",
+          "location": "WS/T 678 3.5，PDF第4页；7至24月龄指南准则4",
+          "summary": "喂养者应回应饥饿和饱足信号，耐心鼓励但不强迫进食。",
+          "relationship": "没有喂养画面时不得推断家庭是否做到回应式喂养。"
+        },
+        {
+          "evidence_id": "E-SAFE-01",
+          "dimension": "熟制",
+          "source": "WS/T 678—2020《婴幼儿辅食添加营养指南》",
+          "location": "3.7、5.1至5.2，PDF第4至5页",
+          "summary": "应使用清洁安全卫生的食材和餐具，原料新鲜，生食水果清洗干净。",
+          "relationship": "画面未展示清洗或来源时写无法确认，不自行补写步骤。"
+        },
+        {
+          "evidence_id": "E-PROFILE-02",
+          "dimension": "喂养方式",
+          "source": "WS/T 821—2023《托育机构质量评估标准》",
+          "location": "6.3.1，PDF第6页",
+          "summary": "喂养和支持方案应同时考虑月龄、实际发展情况和个体差异。",
+          "relationship": "说明不能只按月龄下结论，仍须依赖宝宝实际能力信息。"
+        }
+      ]
+    },
+    "陪做步骤": [
+      {
+        "step_id": "S01",
+        "source_action_id": "A02",
+        "title": "准备食材",
+        "start_time": "00:00:04.000",
+        "end_time": "00:00:16.000",
+        "keyframe_time": "00:00:08.000",
+        "keyframe_description": "桌面上摆放着电子秤、量杯装的大米小米、一盒草莓番茄和一碗冷冻猪肉丸。",
+        "image_url": "/mocks/mock-test-video-1/frames/S01.jpg",
+        "timing": null,
+        "timer_seconds": null,
+        "action": "称量并清洗食材",
+        "instruction": "取适量大米和小米混合洗净，用清水浸泡至少1小时。番茄洗净，生菜洗净沥干。",
+        "completion_check": "米吸水变白，蔬菜洁净",
+        "personal_reminder": "如果满满第一次吃番茄或生菜，请确保之前已单独尝试过。",
+        "mapping_note": "对应原视频中的这一步",
+        "quick_actions": [],
+        "common_questions": []
+      },
+      {
+        "step_id": "S02",
+        "source_action_id": "A04",
+        "title": "处理番茄",
+        "start_time": "00:00:26.000",
+        "end_time": "00:00:29.000",
+        "keyframe_time": "00:00:28.000",
+        "keyframe_description": "使用削皮刀去除番茄表皮，随后在白色砧板上用刀将去皮番茄切成小丁。",
+        "image_url": "/mocks/mock-test-video-1/frames/S02.jpg",
+        "timing": null,
+        "timer_seconds": null,
+        "action": "番茄去皮切极碎",
+        "instruction": "用开水烫一下番茄以便去皮，去皮后将果肉切成非常细小的碎末，越小越好。",
+        "completion_check": "无明显大块果皮和果肉",
+        "personal_reminder": "10月龄宝宝对纤维敏感，切得越碎越安全。",
+        "mapping_note": "对应原视频中的这一步",
+        "quick_actions": [],
+        "common_questions": []
+      },
+      {
+        "step_id": "S03",
+        "source_action_id": "A03",
+        "title": "处理肉类",
+        "start_time": "00:00:17.000",
+        "end_time": "00:00:25.000",
+        "keyframe_time": "00:00:20.000",
+        "keyframe_description": "将装有肉丸的小碗放入绿色电蒸锅中蒸制。",
+        "image_url": "/mocks/mock-test-video-1/frames/S03.jpg",
+        "timing": "约 10 分钟",
+        "timer_seconds": 600,
+        "action": "蒸熟并细化肉类",
+        "instruction": "将猪肉丸（或新鲜肉泥团成的丸子）放入蒸锅蒸熟。取出后，用研磨碗或刀背将其处理成细腻的肉糜。",
+        "completion_check": "肉质松散无大块",
+        "personal_reminder": "务必确认肉丸内部完全熟透且无盐。",
+        "mapping_note": "对应原视频中的这一步",
+        "quick_actions": [],
+        "common_questions": []
+      },
+      {
+        "step_id": "S04",
+        "source_action_id": "A06",
+        "title": "炒制底料",
+        "start_time": "00:00:35.000",
+        "end_time": "00:00:46.000",
+        "keyframe_time": "00:00:40.000",
+        "keyframe_description": "平底锅加热后倒入食用油，先放入番茄丁翻炒出汁，再加入碎肉末一同翻炒均匀。",
+        "image_url": "/mocks/mock-test-video-1/frames/S04.jpg",
+        "timing": "约 3 分钟",
+        "timer_seconds": 180,
+        "action": "少油炒香番茄肉糜",
+        "instruction": "锅中刷薄薄一层油，倒入番茄碎小火炒出红汤，加入肉糜翻炒均匀。",
+        "completion_check": "番茄化成酱汁状",
+        "personal_reminder": "火要小，避免焦糊。",
+        "mapping_note": "对应原视频中的这一步",
+        "quick_actions": [],
+        "common_questions": []
+      },
+      {
+        "step_id": "S05",
+        "source_action_id": "A07",
+        "title": "混合入锅",
+        "start_time": "00:00:47.000",
+        "end_time": "00:00:56.000",
+        "keyframe_time": "00:00:52.000",
+        "keyframe_description": "将炒好的番茄肉酱倒入装有泡好米的白色陶瓷炖盅内，随后加入清水。",
+        "image_url": "/mocks/mock-test-video-1/frames/S05.jpg",
+        "timing": null,
+        "timer_seconds": null,
+        "action": "米酱混合加水",
+        "instruction": "将泡好的米沥水放入炖盅，倒入炒好的番茄肉酱，加入清水。水量约为米的1.5-2倍，喜欢稀一点可多加水。",
+        "completion_check": "水面刚没过食材",
+        "personal_reminder": "水多煮出来更软烂，适合刚开始尝试颗粒的宝宝。",
+        "mapping_note": "对应原视频中的这一步",
+        "quick_actions": [],
+        "common_questions": []
+      },
+      {
+        "step_id": "S06",
+        "source_action_id": "A08",
+        "title": "开始炖煮",
+        "start_time": "00:00:57.000",
+        "end_time": "00:01:00.000",
+        "keyframe_time": "00:00:58.000",
+        "keyframe_description": "将陶瓷炖盅放入白色电炖锅主机中，盖上盖子，手指按压面板选择“宝宝粥”模式。",
+        "image_url": "/mocks/mock-test-video-1/frames/S06.jpg",
+        "timing": "约 1 小时",
+        "timer_seconds": 3600,
+        "action": "启动炖煮程序",
+        "instruction": "盖好盖子，选择电炖锅的“宝宝粥”或“精煮”模式，设定时间为1小时。",
+        "completion_check": "程序启动运行中",
+        "personal_reminder": "确保炖盅放置平稳。",
+        "mapping_note": "对应原视频中的这一步",
+        "quick_actions": [],
+        "common_questions": []
+      },
+      {
+        "step_id": "S07",
+        "source_action_id": "A09",
+        "title": "加入青菜",
+        "start_time": "00:01:01.000",
+        "end_time": "00:01:11.000",
+        "keyframe_time": "00:01:06.000",
+        "keyframe_description": "打开炖锅盖，将切碎的绿色生菜叶撒入炖盅内的米饭上。",
+        "image_url": "/mocks/mock-test-video-1/frames/S07.jpg",
+        "timing": "约 10 分钟",
+        "timer_seconds": 600,
+        "action": "最后加入生菜碎",
+        "instruction": "在炖煮结束前10分钟，开盖将切得极碎的生菜叶撒入，轻轻搅拌一下，盖回继续煮。",
+        "completion_check": "生菜变色变软",
+        "personal_reminder": "青菜煮太久会发黄，最后放能保留营养和色泽。",
+        "mapping_note": "对应原视频中的这一步",
+        "quick_actions": [],
+        "common_questions": []
+      },
+      {
+        "step_id": "S08",
+        "source_action_id": "A10",
+        "title": "出锅晾凉",
+        "start_time": "00:01:12.000",
+        "end_time": "00:01:20.000",
+        "keyframe_time": "00:01:18.000",
+        "keyframe_description": "炖煮结束后取出陶瓷炖盅，用勺子将软饭盛入放在电子秤上的不锈钢碗中。",
+        "image_url": "/mocks/mock-test-video-1/frames/S08.jpg",
+        "timing": "约 5 分钟",
+        "timer_seconds": 300,
+        "action": "盛出并降温",
+        "instruction": "将焖饭盛入碗中，搅拌均匀散热。喂食前务必用手腕内侧测试温度，确保不烫嘴。",
+        "completion_check": "温度适宜（约37-40℃）",
+        "personal_reminder": "宝宝口腔娇嫩，宁可稍凉不可烫。",
+        "mapping_note": "对应原视频中的这一步",
+        "quick_actions": [],
+        "common_questions": []
+      }
+    ]
+  }
+}

@@ -8,6 +8,30 @@ import { childVoiceTts } from "../app/tts-gateway";
 import { foodJourneyFoods } from "../app/food-journey";
 import { buildBabyAgentSystemPrompt } from "../app/agent/prompt";
 import { toAnalysisProfile } from "../app/analysis/profile";
+import { getPlanVideoCandidate, searchPlanVideos } from "../app/plan-video-catalog";
+import { buildCookingAgentSystemPrompt, isUrgentCookingQuestion } from "../app/cooking/prompt";
+import { mockTestVideo1Fixture } from "../app/mocks/fixtures";
+import { streamBabyAgent } from "../app/agent/client";
+
+describe("计划候选视频检索", () => {
+  it("按食材与质地返回可分析的候选，并给出匹配原因", () => {
+    const results = searchPlanVideos("番茄 牛肉 焖饭");
+    expect(results.length).toBeGreaterThanOrEqual(1);
+    expect(results[0].title).toContain("番茄");
+    expect(results[0].matchReasons).toContain("番茄");
+    expect(results[0].localFile).toMatch(/\.mp4$/);
+  });
+
+  it("只允许通过候选 ID 解析受控本地文件", () => {
+    expect(getPlanVideoCandidate("pumpkin-beef-rice")?.localFile).toBe("测试2.mp4");
+    expect(getPlanVideoCandidate("../../etc/passwd")).toBeUndefined();
+  });
+
+  it("测试视频 1 绑定已经固化的 Mock 分析结果", () => {
+    expect(getPlanVideoCandidate("tomato-pork-greens-rice")?.mockFixtureId).toBe("mock-test-video-1");
+    expect(getPlanVideoCandidate("pumpkin-beef-rice")?.mockFixtureId).toBeUndefined();
+  });
+});
 
 describe("辅食小助手人物设定", () => {
   it("绑定宝宝档案并保留事实、语气和医疗边界", () => {
@@ -34,6 +58,49 @@ describe("辅食小助手人物设定", () => {
     const payload = toAnalysisProfile(profile);
     expect(payload.note).toBe("累的时候会吐颗粒");
     expect(payload).not.toHaveProperty("feedingNote");
+  });
+});
+
+describe("DeepSeek 实时陪做问答", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("把宝宝、菜谱、当前步骤、完成进度和计时状态一起交给模型", () => {
+    const prompt = buildCookingAgentSystemPrompt(toAnalysisProfile(completedProfile), mockTestVideo1Fixture.result, {
+      stepIndex: 2,
+      prepared: true,
+      completedStepIds: ["S01", "S02"],
+      timerDurationSeconds: 600,
+      timerRemainingSeconds: 420,
+    });
+    expect(prompt).toContain('"name":"满满"');
+    expect(prompt).toContain('"current_step_number":3');
+    expect(prompt).toContain('"completed_steps":[{"step_id":"S01"');
+    expect(prompt).toContain('"remaining_seconds":420');
+    expect(prompt).toContain("不得擅自跳到下一步");
+    expect(prompt).toContain("接下来：");
+    expect(prompt).toContain("避免“完全没问题”");
+  });
+
+  it("安全中断不会把正常的西红柿问题误判为紧急症状", () => {
+    expect(isUrgentCookingQuestion("西红柿可以换成普通番茄吗")).toBe(false);
+    expect(isUrgentCookingQuestion("宝宝呼吸困难，嘴唇也肿了")).toBe(true);
+  });
+
+  it("客户端把陪做上下文随对话发送，并保持流式回答", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response("先继续压细。接下来：用勺背确认没有硬块。"));
+    vi.stubGlobal("fetch", fetchMock);
+    let streamed = "";
+    await streamBabyAgent([{ role: "user", text: "还是有点硬怎么办" }], completedProfile, (delta) => { streamed += delta; }, undefined, {
+      jobId: "fd3a5c32-c3f5-43be-a0bd-2dc0d6f1e1d5",
+      stepIndex: 1,
+      prepared: true,
+      completedStepIds: ["S01"],
+      timerDurationSeconds: null,
+      timerRemainingSeconds: null,
+    });
+    const request = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
+    expect(request.cookingContext).toMatchObject({ stepIndex: 1, prepared: true, completedStepIds: ["S01"] });
+    expect(streamed).toContain("接下来：");
   });
 });
 

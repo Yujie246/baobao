@@ -5,8 +5,9 @@ import path from "node:path";
 import type { AnalysisJobStatus, AnalysisResult, AnalysisBabyProfile, VideoFactPackage } from "../schemas";
 
 export interface VideoSource {
-  kind: "local" | "blob" | "remote";
+  kind: "local" | "blob" | "remote" | "mock";
   value: string;
+  origin?: string;
   name: string;
   contentType: string;
   size: number;
@@ -26,6 +27,25 @@ const localJobPath = (jobId: string) => path.join(root, jobId, "job.json");
 
 async function streamToBuffer(stream: ReadableStream<Uint8Array>) {
   return Buffer.from(await new Response(stream).arrayBuffer());
+}
+
+async function streamVideoWithLimit(response: Response, maxBytes: number) {
+  if (!response.body) throw new Error("视频响应没有内容");
+  const reader = response.body.getReader();
+  const chunks: Buffer[] = [];
+  let size = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > maxBytes) throw new Error("视频不能超过 200MB");
+      chunks.push(Buffer.from(value));
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return Buffer.concat(chunks, size);
 }
 
 export async function saveJob(record: AnalysisJobRecord) {
@@ -71,14 +91,22 @@ export async function saveUploadedVideo(jobId: string, file: File): Promise<Vide
 
 export async function readVideo(source: VideoSource): Promise<Buffer> {
   if (source.kind === "local") return readFile(source.value);
+  if (source.kind === "mock") throw new Error("Mock 分析结果不包含可重新分析的视频源");
   if (source.kind === "blob") {
     const result = await get(source.value, { access: "private", useCache: false });
     if (!result || result.statusCode !== 200) throw new Error("无法读取已上传视频");
     return streamToBuffer(result.stream);
   }
-  const response = await fetch(source.value);
-  if (!response.ok) throw new Error("无法读取视频链接");
-  return Buffer.from(await response.arrayBuffer());
+  let response = await fetch(source.value, { headers: { "User-Agent": "Mozilla/5.0", Accept: "video/*,*/*" }, signal: AbortSignal.timeout(120_000) });
+  if (!response.ok && source.origin) {
+    const { resolveTikHubVideoUrl } = await import("./tikhub");
+    const refreshedUrl = await resolveTikHubVideoUrl(source.origin);
+    response = await fetch(refreshedUrl, { headers: { "User-Agent": "Mozilla/5.0", Accept: "video/*,*/*" }, signal: AbortSignal.timeout(120_000) });
+  }
+  if (!response.ok) throw new Error("无法读取视频链接，地址可能已失效");
+  const declaredSize = Number(response.headers.get("content-length") || 0);
+  if (declaredSize > 200 * 1024 * 1024) throw new Error("视频不能超过 200MB");
+  return streamVideoWithLimit(response, 200 * 1024 * 1024);
 }
 
 export async function materializeVideo(jobId: string, source: VideoSource) {

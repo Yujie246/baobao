@@ -26,7 +26,7 @@ test("首页能由生产 Worker 正常渲染", async () => {
 });
 
 test("浏览器直接刷新深层路由不会返回 404", async () => {
-  for (const path of ["/home", "/agent", "/plan", "/plan/week", "/food-map", "/food-map/shrimp", "/result/adapted", "/cook/shrimp-noodle-demo/session", "/cook/shrimp-noodle-demo/step/3", "/baby/foods"]) {
+  for (const path of ["/home", "/agent", "/plan", "/plan/week", "/plan/meal/pumpkin-soft-rice/videos", "/food-map", "/food-map/shrimp", "/result/adapted", "/cook/shrimp-noodle-demo/session", "/cook/shrimp-noodle-demo/step/3", "/baby/foods"]) {
     const response = await render(path);
     assert.equal(response.status, 200, path);
   }
@@ -48,7 +48,7 @@ test("实现包含完整页面闭环和统一 Mock 边界", async () => {
   const homeCharacterAnimation = JSON.parse(homeCharacterJson);
   for (const route of [
     "/onboarding/age", "/onboarding/avoid", "/onboarding/stage", "/analysis/:id",
-    "/plan", "/plan/week", "/food-map", "/food-map/:food",
+    "/plan", "/plan/week", "/plan/meal/:mealId/videos", "/food-map", "/food-map/:food",
     "/result/:conclusion", "/cook/:id/session", "/cook/:id/prep", "/cook/:id/step/:step",
     "/feedback/:id/now", "/feedback/:id/now/:part", "/feedback/:id/later", "/history", "/baby", "/agent", "/settings",
   ]) assert.match(app, new RegExp(route.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
@@ -77,7 +77,10 @@ test("实现包含完整页面闭环和统一 Mock 边界", async () => {
   assert.match(app, /className="home-idea-media"/);
   assert.match(app, /src=\{idea\.image\}/);
   assert.match(app, /aria-label=\{`开始制作\$\{idea\.title\}`\}/);
-  assert.match(app, /navigate\(`\/cook\/\$\{idea\.id\}\/session`\)/);
+  assert.match(app, /beginInspirationAnalysis\(idea\)/);
+  assert.match(app, /createCatalogAnalysisJob\(idea\.id, profile\)/);
+  assert.match(app, /closest\("button, a, input"\)/);
+  assert.doesNotMatch(app, /onClick=\{\(\) => navigate\(`\/cook\/\$\{idea\.id\}\/session`\)\}/);
   assert.match(app, /function InspirationCookSession/);
   assert.match(app, /navigate\(`\/feedback\/\$\{idea\.id\}\/now`\)/);
   assert.doesNotMatch(app, /加入计划/);
@@ -90,15 +93,25 @@ test("实现包含完整页面闭环和统一 Mock 边界", async () => {
   assert.match(app, /className="home-primary-flow"/);
   assert.match(app, /variant="primary"/);
   assert.match(app, /计划参考/);
+  assert.match(app, /每一顿都可先找视频，再判断是否适合/);
+  assert.match(app, /function PlanVideoSearchPage/);
+  assert.match(app, /createCatalogAnalysisJob/);
+  assert.match(app, /检查是否适合宝宝/);
+  assert.match(app, /候选匹配只说明/);
   assert.doesNotMatch(app, /已安排 \{weeklyMeals\.length\} 天/);
   assert.match(app, /className="home-dashboard-card food-map"/);
   assert.doesNotMatch(app, /最近的小进步|home-progress-section/);
   assert.match(app, /已记录 \{profile\.triedFoods\.length\} 种/);
-  assert.match(app, /支持 MP4 \/ MOV，最大 200MB/);
+  assert.match(app, /MP4 \/ MOV · 最大 200MB/);
   assert.match(app, /粘贴链接/);
   assert.match(app, /选择文件/);
   assert.match(app, /className=\{cx\("home-import-body"/);
-  assert.ok(app.indexOf("没有链接？试试宝宝虾滑面示例") < app.indexOf('<Button className="home-analysis-button"'));
+  assert.doesNotMatch(app, /没有链接？试试宝宝虾滑面示例/);
+  assert.match(app, /没有链接？试试测试视频 1 示例/);
+  assert.match(app, /没有文件？试试测试视频 1 示例/);
+  assert.match(app, /createCatalogAnalysisJob\("tomato-pork-greens-rice", profile\)/);
+  assert.match(app, /正在读取测试视频 1/);
+  assert.match(app, /3_000/);
   assert.match(app, /function LocalVideoPreview/);
   assert.match(app, /URL\.createObjectURL\(file\)/);
   assert.match(app, /URL\.revokeObjectURL\(previewUrl\)/);
@@ -133,6 +146,10 @@ test("实现包含完整页面闭环和统一 Mock 边界", async () => {
   assert.match(agentRoute, /thinking: \{ type: "disabled" \}/);
   assert.match(agentRoute, /DEEPSEEK_API_KEY/);
   assert.match(agentClient, /fetch\("\/api\/agent-chat"/);
+  assert.match(agentRoute, /buildCookingAgentSystemPrompt/);
+  assert.match(agentRoute, /loadJob\(input\.cookingContext\.jobId\)/);
+  assert.match(app, /completedStepIds: completed\.map/);
+  assert.match(app, /小助手正在结合当前步骤回答/);
   assert.match(agentClient, /response\.body\.getReader\(\)/);
   assert.match(app, /<HomeCharacterAnimation \/><\/Suspense><\/button>/);
   assert.match(app, /lazy\(\(\) => import\("\.\/home-character-animation"\)/);

@@ -70,6 +70,16 @@ export async function createUrlAnalysisJob(url: string, profile: BabyProfile) {
   return response.json() as Promise<{ jobId: string; status: "queued" }>;
 }
 
+export async function createCatalogAnalysisJob(catalogId: string, profile: BabyProfile) {
+  const response = await fetch("/api/analysis-jobs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ video: { kind: "catalog", catalogId }, babyProfile: toAnalysisProfile(profile) }),
+  });
+  if (!response.ok) throw new Error(await errorMessage(response));
+  return response.json() as Promise<{ jobId: string; status: "queued" | "completed" }>;
+}
+
 export async function getAnalysisJob(jobId: string) {
   const response = await fetch(`/api/analysis-jobs/${encodeURIComponent(jobId)}`, { cache: "no-store" });
   if (!response.ok) throw new Error(await errorMessage(response));
