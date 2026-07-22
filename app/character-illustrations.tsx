@@ -30,21 +30,23 @@ export function resolveResultIntent(result?: string): CharacterIntent {
   }
 }
 
-export function CharacterIllustration({ intent = "neutral", size = "support", alt = "", className = "", fallback = null, animate = true }: {
+export function CharacterIllustration({ intent = "neutral", size = "support", alt = "", className = "", fallback = null, animate = true, priority = false }: {
   intent?: CharacterIntent;
   size?: "avatar" | "card" | "support" | "hero";
   alt?: string;
   className?: string;
   fallback?: ReactNode;
   animate?: boolean;
+  priority?: boolean;
 }) {
   const [failed, setFailed] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const reduceMotion = useReducedMotion();
   if (failed) return fallback;
   const base = `/illustrations/ip/v1/${intent}`;
   return (
     <motion.span
-      className={`character-illustration character-${size} ${className}`.trim()}
+      className={`character-illustration character-${size} ${loaded ? "is-loaded" : ""} ${className}`.trim()}
       aria-hidden={alt ? undefined : true}
       initial={animate && !reduceMotion ? { opacity: 0, y: 7, scale: .97 } : false}
       animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -52,7 +54,7 @@ export function CharacterIllustration({ intent = "neutral", size = "support", al
     >
       <picture>
         <source type="image/webp" srcSet={`${base}-160.webp 160w, ${base}-320.webp 320w`} sizes={size === "hero" ? "128px" : size === "avatar" ? "44px" : "88px"} />
-        <img src={`${base}-320.png`} width="320" height="320" alt={alt} decoding="async" onError={() => setFailed(true)} />
+        <img src={`${base}-320.png`} width="320" height="320" alt={alt} loading={priority ? "eager" : undefined} fetchPriority={priority ? "high" : undefined} decoding={priority ? "sync" : "async"} onLoad={() => setLoaded(true)} onError={() => setFailed(true)} />
       </picture>
     </motion.span>
   );
