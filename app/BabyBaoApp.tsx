@@ -534,6 +534,16 @@ function formatImportFileSize(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(bytes >= 10 * 1024 * 1024 ? 0 : 1)} MB`;
 }
 
+function LocalVideoPreview({ file }: { file: File }) {
+  const previewUrl = useMemo(() => URL.createObjectURL(file), [file]);
+  const [failedUrl, setFailedUrl] = useState("");
+  const previewFailed = failedUrl === previewUrl;
+  useEffect(() => () => URL.revokeObjectURL(previewUrl), [previewUrl]);
+  return <div className="home-file-preview-player">
+    {!previewFailed ? <video src={previewUrl} controls playsInline preload="metadata" aria-label={`${file.name} 视频预览`} onError={() => setFailedUrl(previewUrl)}>你的浏览器暂不支持视频预览。</video> : <div className="home-file-preview-fallback"><FileQuestion size={24} /><strong>当前浏览器无法预览这个视频</strong><span>文件仍可继续上传分析</span></div>}
+  </div>;
+}
+
 function HomePage() {
   const navigate = useNavigate();
   const profile = useAppStore((state) => state.profile);
@@ -637,7 +647,7 @@ function HomePage() {
         <form className={cx("paste-card home-import-card", hasNextTask && "secondary")} onSubmit={submit}>
           <div className="home-primary-head"><div className="paste-icon">{importMode === "link" ? <Link2 size={21} /> : <Upload size={21} />}</div><div><h2>导入辅食视频</h2><p>直链或本地 MP4 / MOV</p></div></div>
           <div className="home-import-tabs" role="tablist" aria-label="内容导入方式"><button type="button" role="tab" aria-selected={importMode === "link"} className={cx(importMode === "link" && "active")} onClick={() => { setImportMode("link"); setError(""); }}><Link2 size={15} />粘贴链接</button><button type="button" role="tab" aria-selected={importMode === "file"} className={cx(importMode === "file" && "active")} onClick={() => { setImportMode("file"); setError(""); }}><Upload size={15} />选择文件</button></div>
-          {importMode === "link" ? <><label htmlFor="video-url" className="sr-only">视频链接</label><div className={cx("url-field", error && "invalid")}><input id="video-url" value={url} placeholder="粘贴可直接访问的视频链接" onChange={(e) => { setUrl(e.target.value); setError(""); }} /><button type="button" onClick={pasteLink}>粘贴</button></div></> : <div className="home-file-import"><input className="sr-only" id="home-content-files" type="file" accept=".mp4,.mov,video/mp4,video/quicktime" onChange={chooseImportFiles} />{importFiles.length === 0 ? <label className={cx("home-file-picker", error && "invalid")} htmlFor="home-content-files"><Upload size={22} /><span><strong>选择本地视频</strong><small>支持 MP4 / MOV，最大 200MB</small></span></label> : <div className="home-file-list" aria-live="polite">{importFiles.map((file, index) => <article key={`${file.name}-${file.size}-${index}`}><span><FileIcon size={18} /></span><div><strong>{file.name}</strong><small>视频 · {formatImportFileSize(file.size)}</small></div><button type="button" aria-label={`移除 ${file.name}`} onClick={() => setImportFiles((files) => files.filter((_, fileIndex) => fileIndex !== index))}><Trash2 size={16} /></button></article>)}<label htmlFor="home-content-files">重新选择</label></div>}</div>}
+          {importMode === "link" ? <><label htmlFor="video-url" className="sr-only">视频链接</label><div className={cx("url-field", error && "invalid")}><input id="video-url" value={url} placeholder="粘贴可直接访问的视频链接" onChange={(e) => { setUrl(e.target.value); setError(""); }} /><button type="button" onClick={pasteLink}>粘贴</button></div></> : <div className="home-file-import"><input className="sr-only" id="home-content-files" type="file" accept=".mp4,.mov,video/mp4,video/quicktime" onChange={chooseImportFiles} />{importFiles.length === 0 ? <label className={cx("home-file-picker", error && "invalid")} htmlFor="home-content-files"><Upload size={22} /><span><strong>选择本地视频</strong><small>支持 MP4 / MOV，最大 200MB</small></span></label> : <div className="home-file-preview" aria-live="polite">{importFiles.map((file, index) => <article key={`${file.name}-${file.size}-${index}`}><div className="home-file-preview-media"><LocalVideoPreview file={file} /><button type="button" aria-label={`移除 ${file.name}`} onClick={() => setImportFiles((files) => files.filter((_, fileIndex) => fileIndex !== index))}><Trash2 size={16} /></button></div><div className="home-file-preview-info"><span><FileIcon size={17} /></span><div><strong>{file.name}</strong><small>本地视频 · {formatImportFileSize(file.size)}</small></div></div></article>)}<label htmlFor="home-content-files"><RefreshCw size={14} />重新选择</label></div>}</div>}
           {error && <p className="field-error"><AlertCircle size={14} />{error}</p>}
           <Button full type="submit" disabled={submitting} variant={hasNextTask ? "secondary" : "primary"} icon={<Sparkles size={17} />}>{submitting ? uploadPercent > 0 && uploadPercent < 100 ? `上传中 ${uploadPercent}%` : "正在创建任务…" : importMode === "file" ? "分析这个视频" : "开始分析"}</Button>
           {importMode === "link" && <button className="home-example-link" type="button" onClick={() => { setUrl(demoLink); setError(""); }}><Play size={12} />没有链接？试试宝宝虾滑面示例</button>}
