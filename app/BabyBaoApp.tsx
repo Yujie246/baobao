@@ -543,28 +543,30 @@ function HomePage() {
           <button className="baby-avatar" onClick={() => navigate("/baby")} aria-label="查看宝宝档案"><CharacterIllustration intent="link" size="avatar" animate={false} /></button>
         </header>
         <div className="profile-pill"><Baby size={15} /><span>{profile.name} · {profile.months} 个月 · {stageLabels[profile.stage]}</span><ChevronRight size={15} /></div>
+      </div>
+      <section className="home-primary-flow" aria-label="当前任务与内容导入">
         {hasNextTask && <button className={cx("home-next-task", riskInterrupted && "risk")} onClick={openNextTask}>
           <CharacterIllustration intent={riskInterrupted ? "paused" : hasCookingSession ? "prepare" : "plan"} size="avatar" animate={false} />
           <span className="home-next-task-copy"><small>{riskInterrupted ? "需要先确认" : hasCookingSession ? "继续制作" : "今天需要观察"}</small><strong>{hasCookingSession ? "宝宝虾滑面" : pendingObservation?.recipeTitle}</strong><em>{riskInterrupted ? "陪做已暂停，请先查看风险提示" : hasCookingSession ? `当前第 ${cookStep} / 5 步 · 还剩 ${Math.max(5 - completedSteps.length, 1)} 个动作` : "完成后可补充后续观察"}</em>{hasCookingSession && pendingObservation && <b>另有 1 项待观察</b>}</span>
           <ChevronRight size={18} />
         </button>}
-        <form className="paste-card home-import-card" onSubmit={submit}>
+        <form className={cx("paste-card home-import-card", hasNextTask && "secondary")} onSubmit={submit}>
           <div className="home-primary-head"><div className="paste-icon"><Link2 size={21} /></div><div><h2>导入辅食内容</h2><p>当前支持视频链接</p></div><span>链接分析</span></div>
           <label htmlFor="video-url" className="sr-only">视频链接</label>
           <div className={cx("url-field", error && "invalid")}><input id="video-url" value={url} placeholder="粘贴辅食视频链接" onChange={(e) => { setUrl(e.target.value); setError(""); }} /><button type="button" onClick={pasteLink}>粘贴</button></div>
           {error && <p className="field-error"><AlertCircle size={14} />{error}</p>}
-          <Button full type="submit" icon={<Sparkles size={17} />}>开始分析</Button>
+          <Button full type="submit" variant={hasNextTask ? "secondary" : "primary"} icon={<Sparkles size={17} />}>开始分析</Button>
           <button className="home-example-link" type="button" onClick={() => { setUrl(demoLink); setError(""); }}><Play size={12} />没有链接？试试宝宝虾滑面示例</button>
         </form>
-      </div>
+      </section>
       <section className="home-inspiration-section">
-        <div className="home-section-heading"><div><span>灵感示例</span><h2>今日辅食灵感</h2><p>加入前仍需结合档案和实际食材记录确认</p></div><button onClick={() => setIdeaOffset((current) => (current + 1) % homeInspirationIdeas.length)}>换一换</button></div>
+        <div className="home-section-heading"><div><span>灵感示例</span><h2>今日辅食灵感</h2><p>当前为参考内容，加入前仍需结合档案确认</p></div><button onClick={() => setIdeaOffset((current) => (current + 1) % homeInspirationIdeas.length)}>换一换</button></div>
         <div className="home-inspiration-track">
-          {inspirationIdeas.map((idea) => <article className="home-idea-card" key={idea.id}><div className="home-idea-visual"><FoodIllustration foodId={idea.foodId} alt="" /></div><span>{idea.time}</span><h3>{idea.title}</h3><p>{idea.note}</p><button onClick={() => navigate("/plan")}>去安排<ChevronRight size={13} /></button></article>)}
+          {inspirationIdeas.map((idea) => <article className="home-idea-card" key={idea.id}><div className="home-idea-visual"><FoodIllustration foodId={idea.foodId} alt="" /></div><span>{idea.time}</span><h3>{idea.title}</h3><p>{idea.note}</p><button onClick={() => navigate("/plan")}>加入计划<ChevronRight size={13} /></button></article>)}
         </div>
       </section>
       <section className="home-dashboard-grid" aria-label="计划与探索">
-        <button className="home-dashboard-card plan" onClick={() => navigate("/plan/week")}><span className="home-dashboard-icon"><CalendarDays size={19} /></span><small>本周辅食计划</small><strong>已安排 {weeklyMeals.length} 天</strong><p>今天：南瓜鸡肉软饭</p><em>查看计划 <ChevronRight size={12} /></em></button>
+        <button className="home-dashboard-card plan" onClick={() => navigate("/plan")}><span className="home-dashboard-icon"><CalendarDays size={19} /></span><small>计划参考</small><strong>看看 {weeklyMeals.length} 天搭配</strong><p>尚未保存为真实计划</p><em>开始安排 <ChevronRight size={12} /></em></button>
         <button className="home-dashboard-card food-map" onClick={() => navigate("/food-map")}><span className="home-dashboard-icon"><Map size={19} /></span><small>食物探索地图</small><strong>已记录 {profile.triedFoods.length} 种</strong><p>继续积累真实尝试</p><em>继续探索 <ChevronRight size={12} /></em></button>
       </section>
       {!hasNextTask && <section className="home-calm-note"><CharacterIllustration intent="neutral" size="avatar" animate={false} /><div><strong>今天没有待处理任务</strong><p>小鸡仔可以休息一下，或者从一条辅食内容开始。</p></div></section>}
