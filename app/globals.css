@@ -312,7 +312,7 @@ input::placeholder, textarea::placeholder { color: #b3aaa3; }
 .character-support{width:88px;height:88px}
 .character-hero{width:132px;height:132px}
 .analysis-center{display:flex;align-items:center;justify-content:center;overflow:visible}
-.analysis-center .character-illustration{position:absolute;inset:50% auto auto 50%;transform:translate(-50%,-50%);width:142px;height:142px}
+.analysis-center .character-illustration{position:relative;width:142px;height:142px}
 .result-recipe-mark{display:flex;align-items:center;justify-content:center}
 .result-recipe-mark .character-illustration{width:78px;height:78px}
 .assistant-marker{width:42px;height:42px;overflow:hidden;background:transparent}
