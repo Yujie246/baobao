@@ -66,7 +66,7 @@ test("实现包含完整页面闭环和统一 Mock 边界", async () => {
   assert.match(app, /开启柔和语音/);
   assert.match(app, /安排辅食/);
   assert.match(app, /食物地图/);
-  assert.match(app, /导入辅食内容/);
+  assert.match(app, /导入辅食视频/);
   assert.match(app, /今日辅食灵感/);
   assert.match(app, /className=\{cx\("home-next-task"/);
   assert.match(app, /className="home-primary-flow"/);
@@ -76,14 +76,13 @@ test("实现包含完整页面闭环和统一 Mock 边界", async () => {
   assert.match(app, /className="home-dashboard-grid"/);
   assert.doesNotMatch(app, /最近的小进步|home-progress-section/);
   assert.match(app, /已记录 \{profile\.triedFoods\.length\} 种/);
-  assert.match(app, /链接、视频或图片都可以/);
+  assert.match(app, /直链或本地 MP4 \/ MOV/);
   assert.match(app, /粘贴链接/);
   assert.match(app, /选择文件/);
-  assert.match(importValidation, /视频一次只能选择 1 个，不能与图片混合/);
-  assert.match(importValidation, /图文内容最多选择 9 张图片/);
+  assert.match(app, /请先完成宝宝档案，再生成个性化宝宝版本/);
   assert.match(importValidation, /单个文件不能超过 200 MB/);
-  assert.match(app, /accept="\.mp4,\.mov,\.jpg,\.jpeg,\.png/);
-  assert.match(app, /分析所选内容/);
+  assert.match(app, /accept="\.mp4,\.mov,video\/mp4,video\/quicktime/);
+  assert.match(app, /分析这个视频/);
   assert.doesNotMatch(app, /home-upload-video|home-upload-gallery/);
   assert.match(app, /foodJourneyStages/);
   assert.match(app, /food-character-slot/);
