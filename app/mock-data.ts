@@ -6,7 +6,7 @@ import type { BabyProfile, HistoryRecord, Recipe } from "./types";
  * 页面组件禁止自行拼装“AI 结果”。未来接入 RemoteAiGateway 时可整体替换。
  */
 export const defaultProfile: BabyProfile = {
-  name: "满满",
+  name: "",
   months: 0,
   premature: false,
   correctedMonths: null,
@@ -24,6 +24,7 @@ export const defaultProfile: BabyProfile = {
 
 export const completedProfile: BabyProfile = {
   ...defaultProfile,
+  name: "满满",
   months: 10,
   ageConfirmed: true,
   stage: "soft-lumps",

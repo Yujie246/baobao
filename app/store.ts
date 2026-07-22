@@ -67,6 +67,7 @@ export const useAppStore = create<AppStore>()(
           ? {
               ...baseState.profile,
               ...state.profile,
+              name: state.profile.name?.trim() || "宝宝",
               correctedMonths: state.profile.correctedMonths ?? null,
               ageConfirmed: state.profile.ageConfirmed ?? state.profile.months >= 4,
               stageConfirmed: state.profile.stageConfirmed ?? state.profile.completed,

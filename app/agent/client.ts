@@ -1,4 +1,5 @@
 import type { BabyProfile } from "../types";
+import { toAnalysisProfile } from "../analysis/profile";
 
 export type BabyAgentMessage = { role: "assistant" | "user"; text: string };
 
@@ -11,13 +12,13 @@ export async function streamBabyAgent(
   const response = await fetch("/api/agent-chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, babyProfile: profile }),
+    body: JSON.stringify({ messages, babyProfile: toAnalysisProfile(profile) }),
     signal,
   });
 
   if (!response.ok) {
     const payload = await response.json().catch(() => null) as { error?: string } | null;
-    throw new Error(payload?.error || "满满暂时没有回答，请稍后重试");
+    throw new Error(payload?.error || "小助手暂时没有回答，请稍后重试");
   }
   if (!response.body) throw new Error("模型没有返回可读取的内容");
 

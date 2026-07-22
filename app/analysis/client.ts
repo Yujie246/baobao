@@ -1,20 +1,9 @@
 import { upload } from "@vercel/blob/client";
 import type { BabyProfile } from "../types";
-import type { AnalysisBabyProfile, AnalysisJobStatus, AnalysisResult } from "./schemas";
+import type { AnalysisJobStatus, AnalysisResult } from "./schemas";
+import { toAnalysisProfile } from "./profile";
 
-export function toAnalysisProfile(profile: BabyProfile): AnalysisBabyProfile {
-  return {
-    name: profile.name,
-    months: profile.months,
-    correctedMonths: profile.correctedMonths,
-    premature: profile.premature,
-    stage: profile.stage,
-    avoidFoods: profile.avoidFoods,
-    triedFoods: profile.triedFoods,
-    feedingSignals: profile.feedingSignals,
-    note: profile.feedingNote,
-  };
-}
+export { toAnalysisProfile } from "./profile";
 
 async function errorMessage(response: Response) {
   const payload = await response.json().catch(() => null) as { error?: string } | null;

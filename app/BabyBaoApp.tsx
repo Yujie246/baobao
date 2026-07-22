@@ -11,6 +11,7 @@ import {
   CalendarDays,
   Check,
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
   Clock3,
   Edit3,
@@ -459,14 +460,17 @@ function OnboardingAge() {
   const navigate = useNavigate();
   const profile = useAppStore((state) => state.profile);
   const setProfile = useAppStore((state) => state.setProfile);
+  const [name, setName] = useState(profile.name);
   const [months, setMonths] = useState(profile.months ? String(profile.months) : "");
   const [correctedMonths, setCorrectedMonths] = useState(profile.correctedMonths === null ? "" : String(profile.correctedMonths));
   const selectedAge = Number(months);
   const correctedAge = correctedMonths === "" ? null : Number(correctedMonths);
+  const normalizedName = name.trim();
+  const nameValid = normalizedName.length >= 1 && normalizedName.length <= 8;
   const ageValid = selectedAge >= 4 && selectedAge <= 36;
   const correctedValid = !profile.premature || correctedAge === null || (correctedAge >= 0 && correctedAge <= selectedAge);
   const continueToAvoid = () => {
-    setProfile({ months: selectedAge, correctedMonths: profile.premature ? correctedAge : null, ageConfirmed: true });
+    setProfile({ name: normalizedName, months: selectedAge, correctedMonths: profile.premature ? correctedAge : null, ageConfirmed: true });
     navigate("/onboarding/avoid");
   };
   return (
@@ -475,9 +479,11 @@ function OnboardingAge() {
       <ProgressSteps current={1} />
       <section className="onboarding-card">
         <ProfileIllustration assetId={resolveAgeProfileAsset(ageValid ? selectedAge : undefined)} size="hero" priority fallback={<div className="question-icon yellow"><Baby size={26} /></div>} />
-        <h1>宝宝现在多大了？</h1>
-        <p>填写实际月龄。月龄只参与判断，不代表宝宝必须达到某个进食阶段。</p>
-        <span className="field-label age-field-label">宝宝月龄</span>
+        <h1>先认识一下宝宝</h1>
+        <label className="field-label name-field-label" htmlFor="baby-name">平时怎么称呼宝宝？</label>
+        <input className="onboarding-name-input" id="baby-name" value={name} maxLength={8} autoComplete="off" placeholder="例如：满满" onChange={(event) => setName(event.target.value)} />
+        <span className="field-label age-field-label">宝宝现在多大了？</span>
+        <small className="age-field-help">填写实际月龄。月龄只参与判断，不代表宝宝必须达到某个进食阶段。</small>
         <MonthPicker id="baby-age" label="宝宝月龄" min={4} value={months} onChange={setMonths} />
         <div className="age-shortcuts" aria-label="常用月龄">{ageChoices.map((age) => <button type="button" key={age} aria-pressed={selectedAge === age} className={cx(selectedAge === age && "selected")} onClick={() => setMonths(String(age))}>{age} 月</button>)}</div>
         {months && !ageValid && <p className="field-error"><AlertCircle size={14} />当前支持填写 4—36 个月</p>}
@@ -487,7 +493,7 @@ function OnboardingAge() {
         </div>
         {profile.premature && <div className="corrected-age-panel"><div><strong>纠正月龄（可选）</strong><small>不确定可以先留空，之后再补充</small></div><MonthPicker id="corrected-age" label="纠正月龄" min={0} max={selectedAge || 36} value={correctedMonths} onChange={setCorrectedMonths} />{!correctedValid && <p className="field-error"><AlertCircle size={14} />纠正月龄不能大于实际月龄</p>}</div>}
       </section>
-      <div className="screen-actions"><Button full disabled={!ageValid || !correctedValid} onClick={continueToAvoid}>继续填写不能吃的食材</Button><p>下一步只记录已经明确要避开的食材</p></div>
+      <div className="screen-actions"><Button full disabled={!nameValid || !ageValid || !correctedValid} onClick={continueToAvoid}>继续填写不能吃的食材</Button><p>{!nameValid ? "请先填写宝宝的称呼" : "下一步只记录已经明确要避开的食材"}</p></div>
     </Screen>
   );
 }
@@ -526,7 +532,7 @@ function OnboardingAvoid() {
       <ProgressSteps current={2} />
       <section className="onboarding-card">
         <ProfileIllustration assetId={resolveAvoidProfileAsset(mode)} size="hero" priority fallback={<div className="question-icon pink"><ShieldAlert size={25} /></div>} />
-        <h1>有哪些食材需要避开？</h1>
+        <h1>{profile.name}有哪些食材需要避开？</h1>
         <p>这里只记录已确认过敏、医生要求或家庭正在主动回避的食材。</p>
         <div className="avoid-mode-grid"><button type="button" className={cx(mode === "none" && "selected safe")} aria-pressed={mode === "none"} onClick={chooseNone}><CheckCircle2 size={20} /><span><strong>目前没有</strong><small>没有明确需要避开的食材</small></span></button><button type="button" className={cx(mode === "has" && "selected danger")} aria-pressed={mode === "has"} onClick={() => setProfile({ avoidStatus: "has" })}><ShieldAlert size={20} /><span><strong>有，需要填写</strong><small>选择或补充具体食材</small></span></button></div>
         {mode === "has" && <div className="avoid-details"><span className="field-label">常见食材</span><div className="choice-grid food-grid">{avoidOptions.map((food) => <button type="button" key={food} aria-pressed={profile.avoidFoods.includes(food)} className={cx("choice-chip", profile.avoidFoods.includes(food) && "selected-danger")} onClick={() => toggle(food)}>{food}</button>)}</div><label className="field-label" htmlFor="custom-avoid">其他需要避开的食材</label><div className="inline-input"><input id="custom-avoid" value={custom} placeholder="输入食材名称" onChange={(e) => setCustom(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustom(); } }} /><button type="button" disabled={!custom.trim()} onClick={addCustom}>添加</button></div>{profile.avoidFoods.length > 0 && <div className="selected-tags">{profile.avoidFoods.map((food) => <span key={food}>{food}<button type="button" aria-label={`移除${food}`} onClick={() => toggle(food)}><X size={13} /></button></span>)}</div>}{profile.avoidFoods.length === 0 && <p className="selection-hint">至少选择或添加一种食材，才能继续。</p>}</div>}
@@ -569,7 +575,7 @@ function OnboardingStage() {
       <ProgressSteps current={3} />
       <section className="onboarding-card">
         <ProfileIllustration assetId={profile.stageConfirmed ? resolveTextureProfileAsset(profile.stage) : "age-default"} size="hero" priority fallback={<div className="question-icon mint"><UtensilsCrossed size={25} /></div>} />
-        <h1>宝宝现在能稳定吃什么？</h1>
+        <h1>{profile.name}现在能稳定吃什么？</h1>
         <p>不要按月龄推测。选择宝宝多数时候能顺利处理的最高阶段；介于两项之间时选前一项。</p>
         <div className="stage-list">
           {stageOptions.map((option) => (
@@ -582,32 +588,42 @@ function OnboardingStage() {
         <div className="feeding-followup"><div><strong>最近常出现这些情况吗？</strong><small>可多选；用于让后续质地建议更保守</small></div><div className="signal-grid">{feedingSignalOptions.map((option) => <button type="button" key={option.value} aria-pressed={profile.feedingSignals.includes(option.value)} className={cx(profile.feedingSignals.includes(option.value) && "selected")} onClick={() => toggleSignal(option.value)}>{profile.feedingSignals.includes(option.value) && <Check size={14} />}{option.label}</button>)}<button type="button" className={cx(profile.feedingSignalsConfirmed && profile.feedingSignals.length === 0 && "selected safe")} aria-pressed={profile.feedingSignalsConfirmed && profile.feedingSignals.length === 0} onClick={() => setProfile({ feedingSignals: [], feedingSignalsConfirmed: true })}>{profile.feedingSignalsConfirmed && profile.feedingSignals.length === 0 && <Check size={14} />}暂时没有以上情况</button></div><label htmlFor="feeding-note">还有什么想补充？<span>可选</span></label><textarea id="feeding-note" value={profile.feedingNote} placeholder="例如：偶尔能吃颗粒，累的时候会吐出来" onChange={(event) => setProfile({ feedingNote: event.target.value.slice(0, 120) })} /></div>
         {profile.feedingSignals.includes("swallowing-difficulty") && <div className="info-note risk-note"><ShieldAlert size={17} /><span>已记下吞咽费力。后续建议会优先采用更保守的质地；若持续出现或伴随其他异常，应咨询专业人员。</span></div>}
       </section>
-      <div className="screen-actions"><Button full disabled={!complete} onClick={() => { finish(); navigate("/home"); }}>完成宝宝档案</Button><p>{!profile.stageConfirmed ? "请先选择宝宝稳定能处理的阶段" : !profile.feedingSignalsConfirmed ? "请确认最近是否有进食困难" : "之后可以在宝宝档案中随时修改"}</p></div>
+      <div className="screen-actions"><Button full disabled={!complete} onClick={() => { finish(); navigate("/home"); }}>完成{profile.name}的档案</Button><p>{!profile.stageConfirmed ? `请先选择${profile.name}稳定能处理的阶段` : !profile.feedingSignalsConfirmed ? "请确认最近是否有进食困难" : "之后可以在宝宝档案中随时修改"}</p></div>
     </Screen>
   );
 }
 
 // FRONTEND PLACEHOLDER DATA: 推荐服务接入前，只用于验证首页信息架构；不作为食物安全结论。
 const homeInspirationIdeas = [
-  { id: "pumpkin-rice", title: "南瓜鸡肉软饭", time: "约 15 分钟", foodId: "pumpkin" as FoodId, note: "软烂处理，匹配当前质地", ingredients: "熟米饭、南瓜、鸡肉", steps: [
-    { actionKind: "prepare", timing: "准备", title: "处理南瓜和鸡肉", instruction: "南瓜切小块；鸡肉切碎，生熟食材和工具分开。", check: "南瓜块大小接近，鸡肉没有明显筋膜。" },
-    { actionKind: "heat", timing: "约 10 分钟", title: "煮熟并压软", instruction: "把南瓜和鸡肉充分煮熟，再加入熟米饭和少量水煮至软烂。", check: "鸡肉中心完全熟透，米饭和南瓜能被勺背轻松压开。" },
-    { actionKind: "serve", timing: "约 2 分钟", title: "调整质地并放凉", instruction: "压散明显大块，按宝宝当前能力保留合适的小颗粒，放至适宜入口温度。", check: "没有硬块或肉团，温度适宜。" },
+  { id: "tomato-pork-greens-rice", title: "番茄肉酱青菜焖饭", time: "约 20 分钟", duration: "1:28", source: "测试视频 1", image: "/home/inspiration/tomato-pork-greens-rice.webp", foodId: "carrot" as FoodId, note: "肉酱拌进软饭，青菜最后加入", ingredients: "米饭、番茄、猪肉、青菜", steps: [
+    { actionKind: "prepare", timing: "准备", title: "处理番茄、肉和青菜", instruction: "番茄去皮切碎，猪肉处理成细肉末，青菜焯软后切细。", check: "肉末没有明显筋膜，青菜没有长梗。" },
+    { actionKind: "heat", timing: "约 15 分钟", title: "煮成软烂肉酱饭", instruction: "肉末炒散后加入番茄和米饭，加适量水焖至软烂。", check: "猪肉完全熟透，米粒能被勺背轻松压开。" },
+    { actionKind: "serve", timing: "约 2 分钟", title: "拌入青菜并放凉", instruction: "拌入青菜碎，按宝宝当前能力压散大块并放凉。", check: "整碗没有肉团或硬块，温度适宜。" },
   ] },
-  { id: "broccoli-egg", title: "西兰花蒸蛋", time: "约 12 分钟", foodId: "broccoli" as FoodId, note: "熟悉食材，做法简单", ingredients: "鸡蛋、西兰花、温水", steps: [
-    { actionKind: "prepare", timing: "准备", title: "处理西兰花", instruction: "西兰花只取软嫩花冠，焯软后切细。", check: "没有粗梗和长纤维。" },
-    { actionKind: "mix", timing: "约 2 分钟", title: "调好蛋液", instruction: "鸡蛋打散后加入温水，轻轻混匀，再放入西兰花碎。", check: "蛋液均匀，西兰花碎分散，没有大团。" },
-    { actionKind: "heat", timing: "约 10 分钟", title: "蒸熟并检查", instruction: "蒸至蛋液完全凝固，关火后检查中心，再放凉。", check: "中心完全凝固，没有流动蛋液，质地能轻松压碎。" },
+  { id: "pumpkin-beef-rice", title: "南瓜牛肉焖饭", time: "约 20 分钟", duration: "0:26", source: "测试视频 2", image: "/home/inspiration/pumpkin-beef-rice.webp", foodId: "pumpkin" as FoodId, note: "南瓜软甜，牛肉切细后焖熟", ingredients: "胚芽米、南瓜、牛肉、西兰花", steps: [
+    { actionKind: "prepare", timing: "准备", title: "切细牛肉和南瓜", instruction: "牛肉切成细末，南瓜切小丁，西兰花焯软后切细。", check: "牛肉没有明显筋膜，南瓜块大小接近。" },
+    { actionKind: "heat", timing: "约 16 分钟", title: "把食材和米饭焖软", instruction: "牛肉炒散后加入南瓜和米，按视频做法加水焖至软烂。", check: "牛肉完全熟透，南瓜和米粒都能轻松压开。" },
+    { actionKind: "serve", timing: "约 2 分钟", title: "拌入西兰花并检查", instruction: "拌入西兰花碎，调整稠度并放凉。", check: "没有硬块或肉团，温度适宜。" },
   ] },
-  { id: "carrot-tofu", title: "胡萝卜豆腐软饭", time: "约 18 分钟", foodId: "carrot" as FoodId, note: "容易压软，方便调整颗粒", ingredients: "熟米饭、胡萝卜、豆腐", steps: [
-    { actionKind: "prepare", timing: "准备", title: "切细胡萝卜和豆腐", instruction: "胡萝卜切细碎；豆腐压成小碎块，分别放置。", check: "胡萝卜碎均匀，豆腐没有明显大块。" },
-    { actionKind: "heat", timing: "约 12 分钟", title: "先把胡萝卜煮软", instruction: "胡萝卜加水煮到能轻松压开，再加入熟米饭继续煮软。", check: "胡萝卜和米粒都能被勺背压开。" },
-    { actionKind: "add", timing: "约 3 分钟", title: "加入豆腐并完成", instruction: "加入豆腐碎轻轻拌匀，彻底加热后调整稠度并放凉。", check: "豆腐已热透，整碗没有硬块，温度适宜。" },
+  { id: "tomato-potato-beef-rice", title: "番茄土豆牛肉焖饭", time: "约 25 分钟", duration: "0:54", source: "测试视频 3", image: "/home/inspiration/tomato-potato-beef-rice.webp", foodId: "potato" as FoodId, note: "一锅焖出菜、肉和主食", ingredients: "大米、土豆、番茄、西葫芦、牛肉", steps: [
+    { actionKind: "prepare", timing: "准备", title: "切好蔬菜和牛肉", instruction: "土豆、番茄和西葫芦切成适合宝宝的小丁，牛肉切细。", check: "食材大小接近，牛肉没有明显筋膜。" },
+    { actionKind: "mix", timing: "约 2 分钟", title: "食材放入锅中拌匀", instruction: "把大米、蔬菜和牛肉放入锅中，加适量水和少量油拌匀。", check: "牛肉已经分散，没有结成大团。" },
+    { actionKind: "heat", timing: "约 20 分钟", title: "焖熟并检查软度", instruction: "焖至米饭和食材完全熟透，出锅前充分翻拌。", check: "牛肉中心熟透，土豆和米粒都能轻松压开。" },
   ] },
-  { id: "banana-oat", title: "香蕉燕麦软饼", time: "约 10 分钟", foodId: "banana" as FoodId, note: "加餐灵感，质地仍需确认", ingredients: "香蕉、燕麦、鸡蛋", steps: [
-    { actionKind: "mix", timing: "约 2 分钟", title: "调成均匀面糊", instruction: "香蕉压成泥，与燕麦和鸡蛋混合均匀。", check: "面糊没有明显干粉或大块香蕉。" },
-    { actionKind: "heat", timing: "约 6 分钟", title: "小火煎熟两面", instruction: "摊成小而薄的饼，小火加热，定型后翻面，确保中心熟透。", check: "两面定型，掰开后中心没有湿黏生面糊。" },
-    { actionKind: "serve", timing: "约 2 分钟", title: "检查软度并放凉", instruction: "放凉后分成容易抓握的小块；偏硬时不要直接给宝宝。", check: "小饼能用手指轻松压扁，大小和温度适宜。" },
+  { id: "black-sesame-egg-custard", title: "黑芝麻红枣蒸蛋", time: "约 25 分钟", duration: "0:48", source: "测试视频 4", image: "/home/inspiration/black-sesame-egg-custard.webp", foodId: "egg" as FoodId, note: "细腻蒸蛋搭配黑芝麻米糊", ingredients: "鸡蛋、黑芝麻、胚芽米、红枣", steps: [
+    { actionKind: "prepare", timing: "准备", title: "打好黑芝麻红枣米糊", instruction: "黑芝麻、胚芽米和去皮去核红枣加水打细。", check: "米糊细腻，没有明显硬颗粒和枣核。" },
+    { actionKind: "mix", timing: "约 3 分钟", title: "调好蛋液", instruction: "鸡蛋打散后加入适量温水或配方奶，轻轻混匀。", check: "蛋液均匀，没有大块蛋白。" },
+    { actionKind: "heat", timing: "约 20 分钟", title: "蒸熟后加入米糊", instruction: "蛋液加盖蒸至完全凝固，再把黑芝麻米糊铺在表面。", check: "蒸蛋中心完全凝固，放凉后再入口。" },
+  ] },
+  { id: "spinach-vegetable-egg-custard", title: "菠菜时蔬蛋羹", time: "约 15 分钟", duration: "0:35", source: "测试视频 5", image: "/home/inspiration/spinach-vegetable-egg-custard.webp", foodId: "spinach" as FoodId, note: "菠菜和胡萝卜藏进软嫩蛋羹", ingredients: "鸡蛋、菠菜、胡萝卜", steps: [
+    { actionKind: "prepare", timing: "准备", title: "焯软蔬菜并切细", instruction: "菠菜和胡萝卜焯熟，分别切成细碎。", check: "菠菜没有长纤维，胡萝卜已经变软。" },
+    { actionKind: "mix", timing: "约 2 分钟", title: "蔬菜拌入蛋液", instruction: "鸡蛋充分打散，加入蔬菜碎拌匀后倒入耐热容器。", check: "蔬菜分布均匀，没有成团。" },
+    { actionKind: "heat", timing: "约 10 分钟", title: "蒸熟并切成软条", instruction: "加盖蒸至中心完全凝固，放凉后切成适合抓握的软条。", check: "中心没有流动蛋液，手指能轻松压碎。" },
+  ] },
+  { id: "potato-apple-cake", title: "土豆苹果饼", time: "约 15 分钟", duration: "0:48", source: "测试视频 6", image: "/home/inspiration/potato-apple-cake.webp", foodId: "apple" as FoodId, note: "软糯小饼，掰开能看见苹果丁", ingredients: "土豆、苹果、黑芝麻", steps: [
+    { actionKind: "prepare", timing: "准备", title: "蒸软土豆并切苹果", instruction: "土豆切片蒸至软透后压成泥，苹果去皮切成细小丁。", check: "土豆泥没有硬块，苹果丁大小均匀。" },
+    { actionKind: "mix", timing: "约 3 分钟", title: "包入苹果丁并整形", instruction: "土豆泥分成小份，包入苹果丁后压成薄而均匀的小饼。", check: "小饼厚薄接近，边缘没有裂开。" },
+    { actionKind: "heat", timing: "约 8 分钟", title: "小火煎熟两面", instruction: "表面撒少量黑芝麻，小火煎至两面定型并熟透。", check: "掰开后内部热透，小饼能用手指轻松压扁。" },
   ] },
 ] as const;
 
@@ -648,29 +664,63 @@ function HomePage() {
   const [importFiles, setImportFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [uploadPercent, setUploadPercent] = useState(0);
-  const [ideaOffset, setIdeaOffset] = useState(0);
   const [agentPull, setAgentPull] = useState(0);
+  const agentPullTriggerDistance = 240;
+  const agentPullMaxDistance = 340;
   const agentGesture = useRef({ active: false, startY: 0 });
-  const agentPullProgress = Math.min(agentPull / 188, 1);
+  const inspirationDrag = useRef({ active: false, startX: 0, scrollLeft: 0, moved: false });
+  const suppressInspirationClick = useRef(false);
+  const agentPullProgress = Math.min(agentPull / agentPullTriggerDistance, 1);
   const startAgentPull = (event: React.PointerEvent<HTMLDivElement>) => {
-    if ((event.target as HTMLElement).closest(".profile-pill")) return;
+    if ((event.target as HTMLElement).closest(".profile-pill, .home-scroll-cue")) return;
     if (event.pointerType === "mouse" && event.button !== 0) return;
     agentGesture.current = { active: true, startY: event.clientY };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
   const updateAgentPull = (event: React.PointerEvent<HTMLDivElement>) => {
     if (!agentGesture.current.active) return;
-    const distance = Math.max(0, Math.min(246, event.clientY - agentGesture.current.startY));
+    const distance = Math.max(0, Math.min(agentPullMaxDistance, event.clientY - agentGesture.current.startY));
     setAgentPull(distance);
   };
   const finishAgentPull = () => {
     if (!agentGesture.current.active) return;
     agentGesture.current.active = false;
-    if (agentPull >= 188) {
+    if (agentPull >= agentPullTriggerDistance) {
       navigate("/agent", { state: { transition: "agent" } });
       return;
     }
     setAgentPull(0);
+  };
+  const startInspirationDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType !== "mouse" || event.button !== 0) return;
+    inspirationDrag.current = { active: true, startX: event.clientX, scrollLeft: event.currentTarget.scrollLeft, moved: false };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.currentTarget.dataset.dragging = "true";
+  };
+  const moveInspirationDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = inspirationDrag.current;
+    if (!drag.active) return;
+    const distance = event.clientX - drag.startX;
+    if (Math.abs(distance) > 5) drag.moved = true;
+    if (!drag.moved) return;
+    event.preventDefault();
+    event.currentTarget.scrollLeft = drag.scrollLeft - distance;
+  };
+  const finishInspirationDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = inspirationDrag.current;
+    if (!drag.active) return;
+    drag.active = false;
+    delete event.currentTarget.dataset.dragging;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    if (!drag.moved) return;
+    suppressInspirationClick.current = true;
+    window.setTimeout(() => { suppressInspirationClick.current = false; }, 0);
+  };
+  const preventClickAfterInspirationDrag = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!suppressInspirationClick.current) return;
+    event.preventDefault();
+    event.stopPropagation();
+    suppressInspirationClick.current = false;
   };
   const pasteLink = async () => {
     try {
@@ -735,7 +785,6 @@ function HomePage() {
   };
   const hasCookingSession = cookPrepared || completedSteps.length > 0 || cookConversation.length > 0 || riskInterrupted;
   const pendingObservation = history.find((item) => item.progress === "completed" && item.feedback && !item.feedback.observed);
-  const inspirationIdeas = Array.from({ length: 3 }, (_, index) => homeInspirationIdeas[(ideaOffset + index) % homeInspirationIdeas.length]);
   const hasNextTask = hasCookingSession || Boolean(pendingObservation);
   return (
     <Screen className="home-screen has-bottom-nav">
@@ -747,12 +796,13 @@ function HomePage() {
         onPointerUp={finishAgentPull}
         onPointerCancel={() => { agentGesture.current.active = false; setAgentPull(0); }}
       >
-        <div className="agent-pull-cue" aria-hidden="true"><MessageCircle size={13} /><span>{agentPullProgress >= 1 ? "松开，和满满聊聊" : agentPullProgress >= .55 ? "继续下拉，再一点点" : "下拉，和满满聊聊"}</span><i /></div>
+        <div className="agent-pull-cue" aria-hidden="true"><MessageCircle size={13} /><span>{agentPullProgress >= 1 ? `松开，和${profile.name}聊聊` : agentPullProgress >= .55 ? "继续下拉，再一点点" : `下拉，和${profile.name}聊聊`}</span><i /></div>
         <header className="home-header">
-          <div><span>宝宝饱饱</span><h1>今天给{profile.name}做什么？</h1></div>
+          <div><h1>今天给{profile.name}做什么？</h1></div>
         </header>
-        <button type="button" className="baby-avatar" style={{ right: `calc(3px + ${agentPullProgress * 36}%)`, bottom: `${-7 + agentPullProgress * 43}px`, transform: `scale(${1 + agentPullProgress * .58})` }} onClick={() => navigate("/agent")} aria-label="和满满的辅食小助手对话"><Suspense fallback={<span className="home-character-motion is-fallback"><picture className="home-character-poster"><img src="/illustrations/ip/v2/home-chick-poster.png" width="256" height="256" alt="" decoding="sync" /></picture></span>}><HomeCharacterAnimation /></Suspense></button>
+        <button type="button" className="baby-avatar" style={{ right: `calc(3px + ${agentPullProgress * 36}%)`, bottom: `${-7 + agentPullProgress * 43}px`, transform: `scale(${1 + agentPullProgress * .5})` }} onClick={() => navigate("/agent")} aria-label={`和${profile.name}的辅食小助手对话`}><Suspense fallback={<span className="home-character-motion is-fallback"><picture className="home-character-poster"><img src="/illustrations/ip/v2/home-chick-poster.png" width="256" height="256" alt="" decoding="sync" /></picture></span>}><HomeCharacterAnimation /></Suspense></button>
         <button type="button" className="profile-pill" onClick={() => navigate("/baby")} aria-label={`查看${profile.name}的宝宝档案`}><Baby size={15} /><span>{profile.name} · {profile.months} 个月 · {stageLabels[profile.stage]}</span><ChevronRight size={15} /></button>
+        <button type="button" className="home-scroll-cue" data-no-ripple="true" aria-label="向下浏览首页内容" onClick={(event) => event.currentTarget.closest("main")?.scrollBy({ top: 320, behavior: "smooth" })}><ChevronDown size={20} strokeWidth={2.4} /></button>
       </div>
       <section className="home-dashboard-grid home-dashboard-grid-top" aria-label="计划与探索">
         <button className="home-dashboard-card plan" onClick={() => navigate("/plan")}>
@@ -778,13 +828,21 @@ function HomePage() {
             {importMode === "link" ? <><label htmlFor="video-url" className="sr-only">视频链接</label><div className={cx("url-field", error && "invalid")}><input id="video-url" value={url} placeholder="粘贴可直接访问的视频链接" onChange={(e) => { setUrl(e.target.value); setError(""); }} /><button type="button" onClick={pasteLink}>粘贴</button></div><button className="home-example-link" type="button" onClick={() => { setUrl(demoLink); setError(""); }}><Play size={12} />没有链接？试试宝宝虾滑面示例</button></> : <div className="home-file-import"><input className="sr-only" id="home-content-files" type="file" accept=".mp4,.mov,video/mp4,video/quicktime" onChange={chooseImportFiles} />{importFiles.length === 0 ? <label className={cx("home-file-picker", error && "invalid")} htmlFor="home-content-files"><Upload size={22} /><span><strong>选择本地视频</strong><small>支持 MP4 / MOV，最大 200MB</small></span></label> : <div className="home-file-preview" aria-live="polite">{importFiles.map((file, index) => <article key={`${file.name}-${file.size}-${index}`}><div className="home-file-preview-media"><LocalVideoPreview file={file} /><button type="button" aria-label={`移除 ${file.name}`} onClick={() => setImportFiles((files) => files.filter((_, fileIndex) => fileIndex !== index))}><Trash2 size={16} /></button></div><div className="home-file-preview-info"><span><FileIcon size={17} /></span><div><strong>{file.name}</strong><small>本地视频 · {formatImportFileSize(file.size)}</small></div></div></article>)}<label htmlFor="home-content-files"><RefreshCw size={14} />重新选择</label></div>}</div>}
             {error && <p className="field-error"><AlertCircle size={14} />{error}</p>}
           </div>
-          <Button full type="submit" disabled={submitting} variant="primary" icon={<Sparkles size={17} />}>{submitting ? uploadPercent > 0 && uploadPercent < 100 ? `上传中 ${uploadPercent}%` : "正在创建任务…" : "开始分析"}</Button>
+          <Button className="home-analysis-button" full type="submit" disabled={submitting} variant="primary" icon={<Sparkles size={17} />}>{submitting ? uploadPercent > 0 && uploadPercent < 100 ? `上传中 ${uploadPercent}%` : "正在创建任务…" : "开始分析"}</Button>
         </form>
       </section>
       <section className="home-inspiration-section">
-        <div className="home-section-heading"><div><h2>今日辅食灵感</h2></div><button type="button" aria-label="换一组辅食灵感" onClick={() => setIdeaOffset((current) => (current + 1) % homeInspirationIdeas.length)}><RefreshCw key={ideaOffset} size={14} />换一组</button></div>
-        <div className="home-inspiration-track" role="region" aria-label="辅食灵感，可左右滑动" tabIndex={0}>
-          {inspirationIdeas.map((idea) => <article className="home-idea-card" key={idea.id}><span className="home-idea-time">{idea.time}</span><h3>{idea.title}</h3><p>{idea.note}</p><button aria-label={`开始制作${idea.title}`} onClick={() => navigate(`/cook/${idea.id}/session`)}><Play size={12} />开始制作</button></article>)}
+        <div className="home-section-heading home-inspiration-heading"><div><h2>今日辅食灵感</h2></div></div>
+        <div className="home-inspiration-track" role="region" aria-label="辅食灵感列表" tabIndex={0} onPointerDown={startInspirationDrag} onPointerMove={moveInspirationDrag} onPointerUp={finishInspirationDrag} onPointerCancel={finishInspirationDrag} onClickCapture={preventClickAfterInspirationDrag}>
+          {homeInspirationIdeas.map((idea, index) => <article className="home-idea-card" key={idea.id}>
+            <div className="home-idea-media">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={idea.image} width="640" height="400" alt={`${idea.title}成品`} loading={index === 0 ? "eager" : "lazy"} decoding="async" draggable={false} />
+              <span className="home-idea-source">{idea.source}</span><span className="home-idea-duration"><Play size={10} fill="currentColor" />{idea.duration}</span>
+            </div>
+            <div className="home-idea-copy"><h3>{idea.title}</h3><p>{idea.note}</p><span className="home-idea-time"><Clock3 size={12} />{idea.time}</span></div>
+            <button aria-label={`开始制作${idea.title}`} onClick={() => navigate(`/cook/${idea.id}/session`)}><Play size={12} fill="currentColor" />开始制作</button>
+          </article>)}
         </div>
       </section>
       {!hasNextTask && <section className="home-calm-note"><CharacterIllustration intent="neutral" size="avatar" animate={false} /><div><strong>今天没有待处理任务</strong><p>小鸡仔可以休息一下，或者从一条辅食内容开始。</p></div></section>}
@@ -802,11 +860,11 @@ function BabyAgentPage() {
   const [agentError, setAgentError] = useState("");
   const [failedQuestion, setFailedQuestion] = useState("");
   const [messages, setMessages] = useState<AgentChatMessage[]>([
-    { id: "welcome", role: "assistant", text: `嗨，我是熟悉${profile.name}档案的辅食小助手。你可以问我今天吃什么、食物质地，或把正在担心的情况直接告诉我。` },
+    { id: "welcome", role: "assistant", text: "你可以问我今天吃什么、食物质地，或把正在担心的情况直接告诉我。" },
   ]);
   const timelineRef = useRef<HTMLDivElement>(null);
   const requestRef = useRef<AbortController | null>(null);
-  const suggestions = ["今天吃什么？", "现在适合什么质地？", "满满吃过哪些食材？"];
+  const suggestions = ["今天吃什么？", "现在适合什么质地？", `${profile.name}吃过哪些食材？`];
 
   useEffect(() => {
     timelineRef.current?.scrollTo({ top: timelineRef.current.scrollHeight, behavior: "smooth" });
@@ -842,7 +900,7 @@ function BabyAgentPage() {
       }
     } catch (error) {
       if (controller.signal.aborted) return;
-      setAgentError(error instanceof Error ? error.message : "暂时无法连接千问，请稍后重试");
+      setAgentError(error instanceof Error ? error.message : "暂时无法连接，请稍后重试");
       setFailedQuestion(question);
     } finally {
       setThinking(false);
@@ -851,10 +909,10 @@ function BabyAgentPage() {
   };
 
   return <Screen className="baby-agent-screen">
-    <header className="agent-topbar"><IconButton label="返回首页" onClick={() => navigate("/home", { state: { transition: "back" } })}><ArrowLeft size={20} /></IconButton><div><strong>满满的辅食小助手</strong><span><i />千问 · 已结合宝宝档案</span></div><IconButton label="查看宝宝档案" onClick={() => navigate("/baby")}><Baby size={19} /></IconButton></header>
-    <section className="agent-identity" aria-label="满满的辅食小助手">
+    <header className="agent-topbar"><IconButton label="返回首页" onClick={() => navigate("/home", { state: { transition: "back" } })}><ArrowLeft size={20} /></IconButton><div><strong>{profile.name}的辅食小助手</strong></div><IconButton label="查看宝宝档案" onClick={() => navigate("/baby")}><Baby size={19} /></IconButton></header>
+    <section className="agent-identity" aria-label={`${profile.name}的辅食小助手`}>
       <div className="agent-character"><Suspense fallback={<img /* eslint-disable-line @next/next/no-img-element */ src="/illustrations/ip/v2/home-chick-poster.png" width="256" height="256" alt="" />}><HomeCharacterAnimation /></Suspense></div>
-      <div><span>嗨，我是满满</span><h1>想问我什么？</h1><p>我会结合宝宝档案回答，不替代医生判断</p><div className="agent-profile-strip"><b>{profile.months} 个月</b><i /><b>{stageLabels[profile.stage]}</b><i /><b>已记录 {profile.triedFoods.length} 种食材</b></div></div>
+      <div><h1>想问我什么？</h1><p>我会结合宝宝档案回答，不替代医生判断</p><div className="agent-profile-strip"><b>{profile.months} 个月</b><i /><b>{stageLabels[profile.stage]}</b><i /><b>已记录 {profile.triedFoods.length} 种食材</b></div></div>
     </section>
     <div className="agent-conversation" ref={timelineRef} aria-live="polite">
       {messages.map((message) => message.role === "user" ? <UserMessage key={message.id}>{message.text}</UserMessage> : <AssistantMessage key={message.id} tone={message.tone === "risk" ? "risk" : undefined} intent={message.tone === "risk" ? "paused" : "welcome"}><p>{message.text}</p></AssistantMessage>)}
@@ -863,7 +921,7 @@ function BabyAgentPage() {
     <div className="agent-dock">
       {agentError && <div className="agent-error" role="alert"><WifiOff size={14} /><span>{agentError}</span>{failedQuestion && <button type="button" onClick={() => void ask(failedQuestion)}>重试</button>}</div>}
       {messages.length <= 1 && <div className="agent-suggestions">{suggestions.map((suggestion) => <button type="button" key={suggestion} onClick={() => void ask(suggestion)}>{suggestion}</button>)}</div>}
-      <form className="agent-composer" onSubmit={(event) => { event.preventDefault(); void ask(); }}><input value={input} onChange={(event) => setInput(event.target.value)} placeholder={thinking ? "千问正在回答…" : "问问满满…"} maxLength={300} aria-label="输入问题" /><button type="submit" disabled={!input.trim() || thinking} aria-label="发送"><Send size={18} /></button></form>
+      <form className="agent-composer" onSubmit={(event) => { event.preventDefault(); void ask(); }}><input value={input} onChange={(event) => setInput(event.target.value)} placeholder={thinking ? "正在回答…" : `问问${profile.name}的辅食助手…`} maxLength={300} aria-label="输入问题" /><button type="submit" disabled={!input.trim() || thinking} aria-label="发送"><Send size={18} /></button></form>
       <p>涉及呼吸困难、明显肿胀或持续呕吐，请立即寻求专业帮助</p>
     </div>
   </Screen>;
@@ -930,7 +988,7 @@ function FoodMapPage() {
     <div className="journey-summary"><span><strong>{completedCount}</strong><small>已获徽章</small></span><i /><span><strong>{completedCount} / {foodJourneyFoods.length}</strong><small>路线进度</small></span><i /><span><strong>{currentFood?.name ?? "全部完成"}</strong><small>{currentFood ? "当前关卡" : "太棒了"}</small></span></div>
     <div className="food-journey-scene">
       <FoodMapScenery />
-      <section className="food-journey" aria-label="满满的食物成长路线">
+      <section className="food-journey" aria-label={`${profile.name}的食物成长路线`}>
         {foodJourneyStages.map((stage) => {
           const foods = stage.foodIds.map((foodId) => getFoodJourneyFood(foodId)).filter((food): food is FoodJourneyFood => Boolean(food));
           const stageCompleted = foods.every((food) => progress[food.id]?.status === "completed");
@@ -1316,11 +1374,11 @@ function LegacyRecipeResultPage() {
       ) : (
         <section className={cx("conclusion-card", copy.className)}>
           <div className="conclusion-top"><span className="conclusion-icon">{scenario === "not-recommended" ? <ShieldAlert /> : scenario === "uncertain" ? <FileQuestion /> : <ShieldCheck />}</span></div>
-          <span className="eyebrow">给满满的适配结论</span>
+          <span className="eyebrow">给{profile.name}的适配结论</span>
           <h2>{copy.label}</h2>
           <h3>{copy.title}</h3>
           <p>{resultSummary(scenario)}</p>
-          <div className="profile-evidence"><Baby size={16} /><span>依据：满满 · 10 个月 · 软颗粒阶段</span></div>
+          <div className="profile-evidence"><Baby size={16} /><span>依据：{profile.name} · {profile.months} 个月 · {stageLabels[profile.stage]}</span></div>
         </section>
       )}
       {scenario === "needs-info" && <MissingInfoCard onResolve={() => navigate("/result/adapted")} />}
@@ -1448,7 +1506,7 @@ function ShareCardSheet({ profileName, serving, ingredients, onClose }: { profil
     try {
       const file = await createFile();
       if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
-        await navigator.share({ title: "满满的宝宝虾滑面", text: "已按 10 月龄软颗粒阶段整理的宝宝版本", files: [file] });
+        await navigator.share({ title: `${profileName}的宝宝虾滑面`, text: "已按宝宝档案整理的宝宝版本", files: [file] });
         setMessage("已打开系统分享");
       } else {
         downloadShareFile(file);
@@ -1803,6 +1861,7 @@ function TomatoRiceConversationPage() {
 
 function ShrimpCookSessionPage() {
   const navigate = useNavigate();
+  const profileName = useAppStore((state) => state.profile.name);
   const stepNumber = useAppStore((state) => state.cookStep);
   const cookPrepared = useAppStore((state) => state.cookPrepared);
   const setCookPrepared = useAppStore((state) => state.setCookPrepared);
@@ -1869,7 +1928,7 @@ function ShrimpCookSessionPage() {
     }
     if (/换.*胡萝卜/.test(value)) {
       setRecipeAdjustments({ broccoli: "carrot" });
-      window.setTimeout(() => { answerWith("可以，已经换成满满吃过的胡萝卜，蔬菜总量和后续步骤也一起调整好了。其他食材都齐了吗？"); setThinking(false); }, 320);
+      window.setTimeout(() => { answerWith(`可以，已经换成${profileName}吃过的胡萝卜，蔬菜总量和后续步骤也一起调整好了。其他食材都齐了吗？`); setThinking(false); }, 320);
       return;
     }
     if (/没有.*虾|缺.*虾/.test(value)) {
@@ -1910,7 +1969,7 @@ function ShrimpCookSessionPage() {
     <div className="session-context"><span>宝宝虾滑面</span></div>
     <VoiceStatus engine={voice.voiceEngine} error={voice.voiceError} />
     <div className="conversation-timeline" ref={timelineRef} aria-live="polite">
-      <AssistantMessage><p>我们一起把满满的宝宝虾滑面做好。开始前先确认一下食材，缺什么直接告诉我，我会同步调整后面的做法。</p></AssistantMessage>
+      <AssistantMessage><p>我们一起把{profileName}的宝宝虾滑面做好。开始前先确认一下食材，缺什么直接告诉我，我会同步调整后面的做法。</p></AssistantMessage>
       <AssistantMessage>
         <div className="ingredient-message"><strong>这些食材都准备好了吗？</strong><ul><li>鲜虾仁 35 g</li><li>宝宝面 20 g</li><li>胡萝卜 10 g</li><li>{recipeAdjustments.broccoli === "omit" ? <del>西蓝花 8 g（这次不放）</del> : recipeAdjustments.broccoli === "carrot" ? "胡萝卜另加 8 g（已替换西蓝花）" : "西蓝花 8 g（可选）"}</li><li>蛋清 5 g（可选）</li></ul></div>
       </AssistantMessage>
@@ -1921,7 +1980,7 @@ function ShrimpCookSessionPage() {
       {cookPrepared && !riskInterrupted && <StepMessage step={step} number={stepNumber}>{step.duration && <CookingTimer duration={step.duration} endAt={timerEndAt} setEndAt={setTimerEndAt} />}</StepMessage>}
       {cookPrepared && cookConversation.filter((message) => message.phase === "cook" && message.step === stepNumber && !completedSteps.includes(stepNumber)).map((message) => message.role === "user" ? <UserMessage key={message.id}>{message.text}</UserMessage> : <AssistantMessage key={message.id}><p>{message.text}</p></AssistantMessage>)}
       {thinking && <AssistantMessage><div className="conversation-thinking"><i /><i /><i /></div></AssistantMessage>}
-      {riskInterrupted && <AssistantMessage tone="risk"><div className="risk-copy"><ShieldAlert size={20} /><div><strong>普通陪做已经暂停</strong><p>先停止喂食并观察满满的情况。若症状明显、快速加重或影响呼吸，请立即寻求专业帮助。</p></div></div></AssistantMessage>}
+      {riskInterrupted && <AssistantMessage tone="risk"><div className="risk-copy"><ShieldAlert size={20} /><div><strong>普通陪做已经暂停</strong><p>先停止喂食并观察{profileName}的情况。若症状明显、快速加重或影响呼吸，请立即寻求专业帮助。</p></div></div></AssistantMessage>}
     </div>
     <div className="session-dock">
       <div className="session-suggestions">
@@ -2060,8 +2119,9 @@ function HistoryDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams();
   const history = useAppStore((state) => state.history);
+  const profile = useAppStore((state) => state.profile);
   const item = history.find((entry) => entry.id === id) || history[0];
-  return <Screen className="detail-screen"><TopBar title="记录详情" back="/history" /><section className="detail-hero"><span className="status-chip soft">{item?.date || "今天"}</span><h1>{item?.recipeTitle || "宝宝虾滑面"}</h1><p>{item?.progress === "completed" ? "这次制作和反馈已经保存" : "已保存，尚未开始制作"}</p></section><section className="detail-card"><h2>适配结论</h2><div className="detail-result"><ShieldCheck size={21} /><span><strong>{item ? suitabilityCopy[item.conclusion].label : "调整后可以做"}</strong><small>按满满 10 个月、软颗粒阶段生成</small></span></div></section><section className="detail-card"><h2>实际反馈</h2>{item?.feedback ? <div className="feedback-summary"><span><small>吃了多少</small><strong>{feedbackLabel(item.feedback.amount)}</strong></span><span><small>接受程度</small><strong>{feedbackLabel(item.feedback.acceptance)}</strong></span><span><small>吞咽情况</small><strong>{feedbackLabel(item.feedback.swallowing)}</strong></span></div> : <p className="empty-copy">还没有记录这次反馈。</p>}</section><section className="detail-card"><h2>食材状态变化</h2><div className="food-change"><span className="food-icon">虾</span><div><strong>鲜虾仁</strong><small>尚未尝试 → 已尝试待观察</small></div></div><p className="boundary-copy"><Info size={15} />一次反馈不会直接将食材标记为“安全”。</p></section><div className="screen-actions static"><Button full onClick={() => navigate("/result/adapted")}>再次查看宝宝版本</Button></div></Screen>;
+  return <Screen className="detail-screen"><TopBar title="记录详情" back="/history" /><section className="detail-hero"><span className="status-chip soft">{item?.date || "今天"}</span><h1>{item?.recipeTitle || "宝宝虾滑面"}</h1><p>{item?.progress === "completed" ? "这次制作和反馈已经保存" : "已保存，尚未开始制作"}</p></section><section className="detail-card"><h2>适配结论</h2><div className="detail-result"><ShieldCheck size={21} /><span><strong>{item ? suitabilityCopy[item.conclusion].label : "调整后可以做"}</strong><small>按{profile.name} {profile.months} 个月、{stageLabels[profile.stage]}生成</small></span></div></section><section className="detail-card"><h2>实际反馈</h2>{item?.feedback ? <div className="feedback-summary"><span><small>吃了多少</small><strong>{feedbackLabel(item.feedback.amount)}</strong></span><span><small>接受程度</small><strong>{feedbackLabel(item.feedback.acceptance)}</strong></span><span><small>吞咽情况</small><strong>{feedbackLabel(item.feedback.swallowing)}</strong></span></div> : <p className="empty-copy">还没有记录这次反馈。</p>}</section><section className="detail-card"><h2>食材状态变化</h2><div className="food-change"><span className="food-icon">虾</span><div><strong>鲜虾仁</strong><small>尚未尝试 → 已尝试待观察</small></div></div><p className="boundary-copy"><Info size={15} />一次反馈不会直接将食材标记为“安全”。</p></section><div className="screen-actions static"><Button full onClick={() => navigate("/result/adapted")}>再次查看宝宝版本</Button></div></Screen>;
 }
 
 function feedbackLabel(value?: string) {
@@ -2074,7 +2134,7 @@ function BabyPage() {
   const profile = useAppStore((state) => state.profile);
   const resetProfile = useAppStore((state) => state.resetProfile);
   const [confirmReset, setConfirmReset] = useState(false);
-  return <Screen className="baby-screen has-bottom-nav"><TopBar title="宝宝档案" action={<IconButton label="设置" onClick={() => navigate("/settings")}><Settings size={20} /></IconButton>} /><section className="baby-hero"><div className="large-avatar"><CharacterIllustration intent="neutral" size="support" animate={false} /></div><div><h1>{profile.name}</h1><p>{profile.months} 个月 · {stageLabels[profile.stage]}</p></div><IconButton label="编辑档案" onClick={() => navigate("/baby/edit")}><Edit3 size={18} /></IconButton></section><section className="profile-summary"><div><span><Baby size={19} /></span><p><small>月龄</small><strong>{profile.months} 个月</strong></p></div><div><span><UtensilsCrossed size={19} /></span><p><small>进食阶段</small><strong>{stageLabels[profile.stage]}</strong></p></div><div><span><ShieldCheck size={19} /></span><p><small>明确回避</small><strong>{profile.avoidFoods.length ? profile.avoidFoods.join("、") : "暂无"}</strong></p></div></section><section className="baby-section"><div className="section-heading"><div><span className="eyebrow">食材尝试</span><h2>让适配更有依据</h2></div><button onClick={() => navigate("/baby/foods")}>全部食材</button></div><div className="food-status-grid"><div><span className="food-icon food-icon-illustrated"><FoodIllustration foodId="egg" alt="" /></span><strong>鸡蛋</strong><small className="green-text">已尝试</small></div><div><span className="food-icon">虾</span><strong>鲜虾</strong><small className="orange-text">待观察</small></div><div><span className="food-icon food-icon-illustrated"><FoodIllustration foodId="carrot" alt="" /></span><strong>胡萝卜</strong><small className="green-text">已尝试</small></div><div><span className="food-icon food-icon-illustrated"><FoodIllustration foodId="broccoli" alt="" /></span><strong>西蓝花</strong><small className="green-text">已尝试</small></div></div></section><section className="baby-section"><button className="profile-link" onClick={() => navigate("/history")}><span><History size={18} /><span><strong>制作与反馈记录</strong><small>3 条本机记录</small></span></span><ChevronRight size={18} /></button><button className="profile-link" onClick={() => navigate("/settings")}><span><LockKeyhole size={18} /><span><strong>数据与隐私</strong><small>只保存在当前浏览器</small></span></span><ChevronRight size={18} /></button><button className="profile-link profile-reset-link" onClick={() => setConfirmReset(true)}><span><Trash2 size={18} /><span><strong>重新填写宝宝档案</strong><small>从月龄开始，保留制作与反馈记录</small></span></span><ChevronRight size={18} /></button></section><AnimatePresence>{confirmReset && <Sheet title="重新填写宝宝档案？" onClose={() => setConfirmReset(false)}><div className="sheet-content"><p>将清空当前宝宝的月龄、忌口、进食能力和食材尝试信息，然后回到建档第一步。制作记录与反馈不会删除。</p><Button full variant="danger" onClick={() => { resetProfile(); setConfirmReset(false); navigate("/onboarding/age", { replace: true }); }}>重置档案并重新开始</Button><Button full variant="ghost" onClick={() => setConfirmReset(false)}>取消</Button></div></Sheet>}</AnimatePresence></Screen>;
+  return <Screen className="baby-screen has-bottom-nav"><TopBar title="宝宝档案" action={<IconButton label="设置" onClick={() => navigate("/settings")}><Settings size={20} /></IconButton>} /><section className="baby-hero"><div className="large-avatar"><CharacterIllustration intent="neutral" size="support" animate={false} /></div><div><h1>{profile.name}</h1><p>{profile.months} 个月 · {stageLabels[profile.stage]}</p></div><IconButton label="编辑档案" onClick={() => navigate("/baby/edit")}><Edit3 size={18} /></IconButton></section><section className="profile-summary"><div><span><Baby size={19} /></span><p><small>月龄</small><strong>{profile.months} 个月</strong></p></div><div><span><UtensilsCrossed size={19} /></span><p><small>进食阶段</small><strong>{stageLabels[profile.stage]}</strong></p></div><div><span><ShieldCheck size={19} /></span><p><small>明确回避</small><strong>{profile.avoidFoods.length ? profile.avoidFoods.join("、") : "暂无"}</strong></p></div></section><section className="baby-section"><div className="section-heading"><div><span className="eyebrow">食材尝试</span><h2>让适配更有依据</h2></div><button onClick={() => navigate("/baby/foods")}>全部食材</button></div><div className="food-status-grid"><div><span className="food-icon food-icon-illustrated"><FoodIllustration foodId="egg" alt="" /></span><strong>鸡蛋</strong><small className="green-text">已尝试</small></div><div><span className="food-icon">虾</span><strong>鲜虾</strong><small className="orange-text">待观察</small></div><div><span className="food-icon food-icon-illustrated"><FoodIllustration foodId="carrot" alt="" /></span><strong>胡萝卜</strong><small className="green-text">已尝试</small></div><div><span className="food-icon food-icon-illustrated"><FoodIllustration foodId="broccoli" alt="" /></span><strong>西蓝花</strong><small className="green-text">已尝试</small></div></div></section><section className="baby-section"><button className="profile-link" onClick={() => navigate("/history")}><span><History size={18} /><span><strong>制作与反馈记录</strong><small>3 条本机记录</small></span></span><ChevronRight size={18} /></button><button className="profile-link" onClick={() => navigate("/settings")}><span><LockKeyhole size={18} /><span><strong>数据与隐私</strong><small>只保存在当前浏览器</small></span></span><ChevronRight size={18} /></button><button className="profile-link profile-reset-link" onClick={() => setConfirmReset(true)}><span><Trash2 size={18} /><span><strong>重新填写宝宝档案</strong><small>从称呼和月龄开始，保留制作与反馈记录</small></span></span><ChevronRight size={18} /></button></section><AnimatePresence>{confirmReset && <Sheet title="重新填写宝宝档案？" onClose={() => setConfirmReset(false)}><div className="sheet-content"><p>将清空当前宝宝的称呼、月龄、忌口、进食能力和食材尝试信息，然后回到建档第一步。制作记录与反馈不会删除。</p><Button full variant="danger" onClick={() => { resetProfile(); setConfirmReset(false); navigate("/onboarding/age", { replace: true }); }}>重置档案并重新开始</Button><Button full variant="ghost" onClick={() => setConfirmReset(false)}>取消</Button></div></Sheet>}</AnimatePresence></Screen>;
 }
 
 function FoodsPage() {
@@ -2096,7 +2156,8 @@ function SettingsPage() {
   const navigate = useNavigate();
   const reset = useAppStore((state) => state.resetDemo);
   const [confirm, setConfirm] = useState(false);
-  return <Screen className="settings-screen"><TopBar title="设置" back="/baby" /><section className="settings-group"><span className="group-label">数据</span><div className="settings-row"><span><LockKeyhole size={19} /><span><strong>存储位置</strong><small>只保存在当前浏览器</small></span></span><span className="value">本机</span></div></section><section className="settings-group"><span className="group-label">关于</span><div className="settings-row"><span><Info size={19} /><span><strong>产品边界</strong><small>不构成真实喂养或医疗建议</small></span></span></div></section><section className="settings-group"><span className="group-label">重置</span><button className="settings-row danger-row" onClick={() => setConfirm(true)}><span><Trash2 size={19} /><span><strong>清除本机数据</strong><small>重新进入三步建档</small></span></span><ChevronRight size={18} /></button></section><AnimatePresence>{confirm && <Sheet title="清除所有本机数据？" onClose={() => setConfirm(false)}><div className="sheet-content"><p>满满的档案、历史菜谱、陪做进度和反馈都会被清除。这个操作无法撤销。</p><Button full variant="danger" onClick={() => { reset(); setConfirm(false); navigate("/onboarding/age"); }}>清除并重新开始</Button><Button full variant="ghost" onClick={() => setConfirm(false)}>取消</Button></div></Sheet>}</AnimatePresence></Screen>;
+  const profileName = useAppStore((state) => state.profile.name);
+  return <Screen className="settings-screen"><TopBar title="设置" back="/baby" /><section className="settings-group"><span className="group-label">数据</span><div className="settings-row"><span><LockKeyhole size={19} /><span><strong>存储位置</strong><small>只保存在当前浏览器</small></span></span><span className="value">本机</span></div></section><section className="settings-group"><span className="group-label">关于</span><div className="settings-row"><span><Info size={19} /><span><strong>产品边界</strong><small>不构成真实喂养或医疗建议</small></span></span></div></section><section className="settings-group"><span className="group-label">重置</span><button className="settings-row danger-row" onClick={() => setConfirm(true)}><span><Trash2 size={19} /><span><strong>清除本机数据</strong><small>重新进入三步建档</small></span></span><ChevronRight size={18} /></button></section><AnimatePresence>{confirm && <Sheet title="清除所有本机数据？" onClose={() => setConfirm(false)}><div className="sheet-content"><p>{profileName}的档案、历史菜谱、陪做进度和反馈都会被清除。这个操作无法撤销。</p><Button full variant="danger" onClick={() => { reset(); setConfirm(false); navigate("/onboarding/age"); }}>清除并重新开始</Button><Button full variant="ghost" onClick={() => setConfirm(false)}>取消</Button></div></Sheet>}</AnimatePresence></Screen>;
 }
 
 function EmptyState({ title, description, action, onAction }: { title: string; description: string; action: string; onAction: () => void }) {
