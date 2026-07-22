@@ -29,6 +29,7 @@ import {
   Pause,
   Play,
   Plus,
+  RefreshCw,
   Send,
   ShoppingBasket,
   Settings,
@@ -600,7 +601,7 @@ function HomePage() {
         <header className="home-header">
           <div><span>宝宝饱饱</span><h1>今天给{profile.name}做什么？</h1></div>
         </header>
-        <button type="button" className="baby-avatar" onClick={() => navigate("/baby")} aria-label="查看宝宝档案"><Suspense fallback={<span className="home-character-motion is-fallback"><CharacterIllustration intent="welcome" size="support" animate={false} priority className="home-character-poster" /></span>}><HomeCharacterAnimation /></Suspense></button>
+        <button type="button" className="baby-avatar" onClick={() => navigate("/baby")} aria-label="查看宝宝档案"><Suspense fallback={<span className="home-character-motion is-fallback"><picture className="home-character-poster"><img src="/illustrations/ip/v2/home-chick-poster.png" width="256" height="256" alt="" decoding="sync" /></picture></span>}><HomeCharacterAnimation /></Suspense></button>
         <button type="button" className="profile-pill" onClick={() => navigate("/baby")} aria-label={`查看${profile.name}的宝宝档案`}><Baby size={15} /><span>{profile.name} · {profile.months} 个月 · {stageLabels[profile.stage]}</span><ChevronRight size={15} /></button>
       </div>
       <section className="home-primary-flow" aria-label="当前任务与内容导入">
@@ -619,7 +620,7 @@ function HomePage() {
         </form>
       </section>
       <section className="home-inspiration-section">
-        <div className="home-section-heading"><div><h2>今日辅食灵感</h2></div><button onClick={() => setIdeaOffset((current) => (current + 1) % homeInspirationIdeas.length)}>换一换</button></div>
+        <div className="home-section-heading"><div><h2>今日辅食灵感</h2></div><button type="button" aria-label="换一组辅食灵感" onClick={() => setIdeaOffset((current) => (current + 1) % homeInspirationIdeas.length)}><RefreshCw key={ideaOffset} size={14} />换一组</button></div>
         <div className="home-inspiration-track">
           {inspirationIdeas.map((idea) => <article className="home-idea-card" key={idea.id}><div className="home-idea-visual"><FoodIllustration foodId={idea.foodId} alt="" /></div><span>{idea.time}</span><h3>{idea.title}</h3><p>{idea.note}</p><button onClick={() => navigate("/plan")}>加入计划<ChevronRight size={13} /></button></article>)}
         </div>
