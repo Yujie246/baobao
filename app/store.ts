@@ -19,7 +19,8 @@ interface AppStore extends PersistedAppState {
   setRiskInterrupted: (value: boolean) => void;
   setFeedback: (feedback: Partial<Feedback>) => void;
   saveRecipe: (conclusion?: Suitability) => void;
-  completeRecipe: () => void;
+  completeRecipe: (recipe?: { id: string; title: string }) => void;
+  saveObservation: (recipeId: string, observed: NonNullable<Feedback["observed"]>) => void;
   resetDemo: () => void;
   loadDemo: () => void;
 }
@@ -44,7 +45,25 @@ export const useAppStore = create<AppStore>()(
       ...baseState,
       hydrated: false,
       setHydrated: (hydrated) => set({ hydrated }),
-      hydrate: (state) => set({ ...baseState, ...(state ?? {}), hydrated: true }),
+      hydrate: (state) => set({
+        ...baseState,
+        ...(state ?? {}),
+        profile: state?.profile
+          ? {
+              ...baseState.profile,
+              ...state.profile,
+              correctedMonths: state.profile.correctedMonths ?? null,
+              ageConfirmed: state.profile.ageConfirmed ?? state.profile.months >= 4,
+              stageConfirmed: state.profile.stageConfirmed ?? state.profile.completed,
+              feedingSignals: state.profile.feedingSignals ?? [],
+              feedingSignalsConfirmed: state.profile.feedingSignalsConfirmed ?? state.profile.completed,
+              feedingNote: state.profile.feedingNote ?? "",
+              avoidStatus: state.profile.avoidStatus
+                ?? (state.profile.avoidFoods.length > 0 ? "has" : state.profile.completed ? "none" : null),
+            }
+          : baseState.profile,
+        hydrated: true,
+      }),
       setProfile: (profile) => set((state) => ({ profile: { ...state.profile, ...profile } })),
       finishOnboarding: () => set((state) => ({ profile: { ...state.profile, completed: true } })),
       setCookStep: (cookStep) => set({ cookStep }),
@@ -73,18 +92,31 @@ export const useAppStore = create<AppStore>()(
           ...state.history.filter((item) => item.id !== "shrimp-noodle-demo"),
         ],
       })),
-      completeRecipe: () => set((state) => ({
+      completeRecipe: (recipe = { id: "shrimp-noodle-demo", title: "宝宝虾滑面" }) => set((state) => ({
         history: [
           {
-            id: "shrimp-noodle-demo",
-            recipeTitle: "宝宝虾滑面",
+            id: recipe.id,
+            recipeTitle: recipe.title,
             conclusion: "adapted",
             date: "今天",
             progress: "completed",
             feedback: { ...state.feedback, completedAt: Date.now() },
           },
-          ...state.history.filter((item) => item.id !== "shrimp-noodle-demo"),
+          ...state.history.filter((item) => item.id !== recipe.id),
         ],
+        cookStep: 1,
+        completedSteps: [],
+        timerEndAt: null,
+        cookPrepared: false,
+        cookIngredientBlocked: false,
+        cookConversation: [],
+        riskInterrupted: false,
+        feedback: {},
+      })),
+      saveObservation: (recipeId, observed) => set((state) => ({
+        history: state.history.map((item) => item.id === recipeId
+          ? { ...item, feedback: { ...item.feedback, observed } }
+          : item),
       })),
       resetDemo: () => set({ ...baseState, hydrated: true }),
       loadDemo: () => set({ ...baseState, profile: completedProfile, hydrated: true }),

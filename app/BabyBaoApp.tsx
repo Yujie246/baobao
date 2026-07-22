@@ -11,7 +11,6 @@ import {
   Check,
   CheckCircle2,
   ChevronRight,
-  CircleHelp,
   Clock3,
   Edit3,
   Download,
@@ -72,9 +71,11 @@ import {
   demoLink,
   shrimpNoodleRecipe,
   suitabilityCopy,
+  tomatoRiceAnalysis,
 } from "./mock-data";
 import { selectPersistedState, useAppStore } from "./store";
-import type { CookingStep, Feedback, Ingredient, Suitability } from "./types";
+import { childVoiceTts } from "./tts-gateway";
+import type { CookingStep, FeedingSignal, FeedingStage, Feedback, Ingredient, Suitability } from "./types";
 
 const stageLabels = {
   puree: "细腻泥糊",
@@ -332,44 +333,54 @@ function LoadingScreen() {
   );
 }
 
-const ageChoices = [6, 7, 8, 9, 10, 11, 12, 15, 18, 24];
+const ageChoices = [6, 8, 10, 12, 18, 24];
+
+function MonthPicker({ id, label, value, onChange, min = 0, max = 36 }: { id: string; label: string; value: string; onChange: (value: string) => void; min?: number; max?: number }) {
+  const numericValue = Number(value);
+  const update = (next: number) => onChange(String(Math.min(max, Math.max(min, next))));
+  return (
+    <div className="month-picker">
+      <button type="button" aria-label={`${label}减 1 个月`} disabled={!value || numericValue <= min} onClick={() => update(numericValue - 1)}><Minus size={18} /></button>
+      <label htmlFor={id}><input id={id} aria-label={label} inputMode="numeric" value={value} placeholder="—" onChange={(event) => onChange(event.target.value.replace(/\D/g, "").slice(0, 2))} /><span>个月</span></label>
+      <button type="button" aria-label={`${label}加 1 个月`} disabled={numericValue >= max} onClick={() => update((numericValue || min) + 1)}><Plus size={18} /></button>
+    </div>
+  );
+}
 
 function OnboardingAge() {
   const navigate = useNavigate();
   const profile = useAppStore((state) => state.profile);
   const setProfile = useAppStore((state) => state.setProfile);
-  const [manual, setManual] = useState("");
-  const selectedAge = manual ? Number(manual) : profile.months;
-  const valid = selectedAge >= 4 && selectedAge <= 36;
+  const [months, setMonths] = useState(profile.months ? String(profile.months) : "");
+  const [correctedMonths, setCorrectedMonths] = useState(profile.correctedMonths === null ? "" : String(profile.correctedMonths));
+  const selectedAge = Number(months);
+  const correctedAge = correctedMonths === "" ? null : Number(correctedMonths);
+  const ageValid = selectedAge >= 4 && selectedAge <= 36;
+  const correctedValid = !profile.premature || correctedAge === null || (correctedAge >= 0 && correctedAge <= selectedAge);
+  const continueToAvoid = () => {
+    setProfile({ months: selectedAge, correctedMonths: profile.premature ? correctedAge : null, ageConfirmed: true });
+    navigate("/onboarding/avoid");
+  };
   return (
     <Screen className="onboarding-screen">
       <TopBar title="建立宝宝档案" eyebrow="1 / 3" />
       <ProgressSteps current={1} />
       <section className="onboarding-card">
         <div className="question-icon yellow"><Baby size={26} /></div>
-        <span className="question-kicker">先认识一下宝宝</span>
-        <h1>满满现在多大了？</h1>
-        <p>月龄会影响质地、份量和步骤判断，之后可以随时修改。</p>
-        <div className="choice-grid age-grid">
-          {ageChoices.map((age) => (
-            <button key={age} className={cx("choice-chip", !manual && profile.months === age && "selected")} onClick={() => { setManual(""); setProfile({ months: age }); }}>
-              {age} 个月
-            </button>
-          ))}
+        <span className="question-kicker">先确认基础月龄</span>
+        <h1>宝宝现在多大了？</h1>
+        <p>填写实际月龄。月龄只参与判断，不代表宝宝必须达到某个进食阶段。</p>
+        <span className="field-label age-field-label">宝宝月龄</span>
+        <MonthPicker id="baby-age" label="宝宝月龄" min={4} value={months} onChange={setMonths} />
+        <div className="age-shortcuts" aria-label="常用月龄">{ageChoices.map((age) => <button type="button" key={age} aria-pressed={selectedAge === age} className={cx(selectedAge === age && "selected")} onClick={() => setMonths(String(age))}>{age} 月</button>)}</div>
+        {months && !ageValid && <p className="field-error"><AlertCircle size={14} />当前支持填写 4—36 个月</p>}
+        <div className="onboarding-subquestion">
+          <div><strong>宝宝是早产出生吗？</strong><small>用于判断是否需要参考纠正月龄</small></div>
+          <div className="binary-choice"><button type="button" className={cx(!profile.premature && "selected")} aria-pressed={!profile.premature} onClick={() => { setProfile({ premature: false }); setCorrectedMonths(""); }}>不是</button><button type="button" className={cx(profile.premature && "selected")} aria-pressed={profile.premature} onClick={() => setProfile({ premature: true })}>是</button></div>
         </div>
-        <label className="field-label" htmlFor="manual-age">没有合适的选项？手动输入</label>
-        <div className="input-with-suffix">
-          <input id="manual-age" inputMode="numeric" value={manual} placeholder="例如 13" onChange={(e) => setManual(e.target.value.replace(/\D/g, "").slice(0, 2))} />
-          <span>个月</span>
-        </div>
-        {manual && !valid && <p className="field-error">请输入 4—36 之间的月龄</p>}
-        <label className="toggle-row">
-          <span><strong>宝宝是否早产？</strong><small>如是，后续判断会提示补充纠正月龄</small></span>
-          <input type="checkbox" checked={profile.premature} onChange={(e) => setProfile({ premature: e.target.checked })} />
-          <i />
-        </label>
+        {profile.premature && <div className="corrected-age-panel"><div><strong>纠正月龄（可选）</strong><small>不确定可以先留空，之后再补充</small></div><MonthPicker id="corrected-age" label="纠正月龄" min={0} max={selectedAge || 36} value={correctedMonths} onChange={setCorrectedMonths} />{!correctedValid && <p className="field-error"><AlertCircle size={14} />纠正月龄不能大于实际月龄</p>}</div>}
       </section>
-      <div className="screen-actions"><Button full disabled={!valid} onClick={() => { if (manual) setProfile({ months: selectedAge }); navigate("/onboarding/avoid"); }}>继续填写忌口</Button></div>
+      <div className="screen-actions"><Button full disabled={!ageValid || !correctedValid} onClick={continueToAvoid}>继续填写不能吃的食材</Button><p>下一步只记录已经明确要避开的食材</p></div>
     </Screen>
   );
 }
@@ -388,18 +399,20 @@ function OnboardingAvoid() {
   const navigate = useNavigate();
   const profile = useAppStore((state) => state.profile);
   const setProfile = useAppStore((state) => state.setProfile);
-  const [none, setNone] = useState(profile.avoidFoods.length === 0);
   const [custom, setCustom] = useState("");
+  const [confirmClear, setConfirmClear] = useState(false);
+  const mode = profile.avoidStatus;
   const toggle = (food: string) => {
-    setNone(false);
-    setProfile({ avoidFoods: profile.avoidFoods.includes(food) ? profile.avoidFoods.filter((item) => item !== food) : [...profile.avoidFoods, food] });
+    const nextFoods = profile.avoidFoods.includes(food) ? profile.avoidFoods.filter((item) => item !== food) : [...profile.avoidFoods, food];
+    setProfile({ avoidStatus: "has", avoidFoods: nextFoods });
   };
   const addCustom = () => {
     const value = custom.trim();
-    if (value && !profile.avoidFoods.includes(value)) setProfile({ avoidFoods: [...profile.avoidFoods, value] });
+    if (value && !profile.avoidFoods.includes(value)) setProfile({ avoidStatus: "has", avoidFoods: [...profile.avoidFoods, value] });
     setCustom("");
-    setNone(false);
   };
+  const chooseNone = () => profile.avoidFoods.length ? setConfirmClear(true) : setProfile({ avoidStatus: "none", avoidFoods: [] });
+  const avoidComplete = mode === "none" || (mode === "has" && profile.avoidFoods.length > 0);
   return (
     <Screen className="onboarding-screen">
       <TopBar title="建立宝宝档案" eyebrow="2 / 3" back="/onboarding/age" />
@@ -408,26 +421,29 @@ function OnboardingAvoid() {
         <div className="question-icon pink"><ShieldAlert size={25} /></div>
         <span className="question-kicker">会直接影响适配结论</span>
         <h1>有哪些食材需要避开？</h1>
-        <p>请选择已经明确需要回避的食材；“还没吃过”不等于需要回避。</p>
-        <button className={cx("wide-choice", none && "selected")} onClick={() => { setNone(true); setProfile({ avoidFoods: [] }); }}><CheckCircle2 size={19} />目前没有明确需要避开的</button>
-        <div className="choice-grid food-grid">
-          {avoidOptions.map((food) => <button key={food} className={cx("choice-chip", profile.avoidFoods.includes(food) && "selected-danger")} onClick={() => toggle(food)}>{food}</button>)}
-        </div>
-        <label className="field-label" htmlFor="custom-avoid">其他需要回避的食材</label>
-        <div className="inline-input"><input id="custom-avoid" value={custom} placeholder="输入食材名称" onChange={(e) => setCustom(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addCustom()} /><button onClick={addCustom}>添加</button></div>
-        {profile.avoidFoods.length > 0 && <div className="selected-tags">{profile.avoidFoods.map((food) => <span key={food}>{food}<button aria-label={`移除${food}`} onClick={() => toggle(food)}><X size={13} /></button></span>)}</div>}
-        <div className="info-note"><Info size={16} /><span>疾病、过敏诊断或医生给出的特殊要求，请以专业意见为准。</span></div>
+        <p>这里只记录已确认过敏、医生要求或家庭正在主动回避的食材。</p>
+        <div className="avoid-mode-grid"><button type="button" className={cx(mode === "none" && "selected safe")} aria-pressed={mode === "none"} onClick={chooseNone}><CheckCircle2 size={20} /><span><strong>目前没有</strong><small>没有明确需要避开的食材</small></span></button><button type="button" className={cx(mode === "has" && "selected danger")} aria-pressed={mode === "has"} onClick={() => setProfile({ avoidStatus: "has" })}><ShieldAlert size={20} /><span><strong>有，需要填写</strong><small>选择或补充具体食材</small></span></button></div>
+        {mode === "has" && <div className="avoid-details"><span className="field-label">常见食材</span><div className="choice-grid food-grid">{avoidOptions.map((food) => <button type="button" key={food} aria-pressed={profile.avoidFoods.includes(food)} className={cx("choice-chip", profile.avoidFoods.includes(food) && "selected-danger")} onClick={() => toggle(food)}>{food}</button>)}</div><label className="field-label" htmlFor="custom-avoid">其他需要避开的食材</label><div className="inline-input"><input id="custom-avoid" value={custom} placeholder="输入食材名称" onChange={(e) => setCustom(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustom(); } }} /><button type="button" disabled={!custom.trim()} onClick={addCustom}>添加</button></div>{profile.avoidFoods.length > 0 && <div className="selected-tags">{profile.avoidFoods.map((food) => <span key={food}>{food}<button type="button" aria-label={`移除${food}`} onClick={() => toggle(food)}><X size={13} /></button></span>)}</div>}{profile.avoidFoods.length === 0 && <p className="selection-hint">至少选择或添加一种食材，才能继续。</p>}</div>}
+        <div className="info-note explain-note"><Info size={16} /><span><strong>“没吃过”不等于“不能吃”</strong>尚未尝试的食材会在分析具体视频时单独确认，不需要在这里全部填写。</span></div>
       </section>
-      <div className="screen-actions"><Button full onClick={() => navigate("/onboarding/stage")}>继续选择进食阶段</Button></div>
+      <div className="screen-actions"><Button full disabled={!avoidComplete} onClick={() => navigate("/onboarding/stage")}>继续选择进食能力</Button><p>疾病或医生要求请始终以专业意见为准</p></div>
+      <AnimatePresence>{confirmClear && <Sheet title="清除已选食材？" onClose={() => setConfirmClear(false)}><div className="sheet-content"><p>选择“目前没有”会清除已选的 {profile.avoidFoods.join("、")}。</p><Button full variant="danger" onClick={() => { setProfile({ avoidStatus: "none", avoidFoods: [] }); setConfirmClear(false); }}>清除并选择“目前没有”</Button><Button full variant="ghost" onClick={() => setConfirmClear(false)}>保留已选食材</Button></div></Sheet>}</AnimatePresence>
     </Screen>
   );
 }
 
 const stageOptions = [
-  { value: "puree" as const, title: "细腻泥糊", desc: "完全顺滑，没有颗粒", sample: "●" },
-  { value: "thick-puree" as const, title: "稠泥与小颗粒", desc: "能处理很小、很软的颗粒", sample: "••" },
-  { value: "soft-lumps" as const, title: "软颗粒", desc: "能用牙龈压碎软颗粒", sample: "●·" },
-  { value: "finger-food" as const, title: "软手指食物", desc: "能抓握并咬下软食物", sample: "▰" },
+  { value: "puree" as const, title: "刚开始吃辅食", desc: "目前稳定吃顺滑、没有颗粒的泥糊" },
+  { value: "thick-puree" as const, title: "能吃稠泥和细碎食物", desc: "可以稳定处理较稠泥糊和很细软的小碎末" },
+  { value: "soft-lumps" as const, title: "能吃压软的小颗粒", desc: "可以用牙龈压碎软颗粒和较软碎食" },
+  { value: "finger-food" as const, title: "能吃软手指食物", desc: "可以抓握并处理一捏就软、容易压碎的食物" },
+];
+
+const feedingSignalOptions: Array<{ value: FeedingSignal; label: string }> = [
+  { value: "gagging", label: "经常干呕" },
+  { value: "spitting", label: "常把食物顶出或吐出来" },
+  { value: "texture-refusal", label: "明显抗拒颗粒" },
+  { value: "swallowing-difficulty", label: "吞咽看起来费力" },
 ];
 
 function OnboardingStage() {
@@ -435,6 +451,12 @@ function OnboardingStage() {
   const profile = useAppStore((state) => state.profile);
   const setProfile = useAppStore((state) => state.setProfile);
   const finish = useAppStore((state) => state.finishOnboarding);
+  const chooseStage = (stage: FeedingStage) => setProfile({ stage, stageConfirmed: true });
+  const toggleSignal = (signal: FeedingSignal) => {
+    const next = profile.feedingSignals.includes(signal) ? profile.feedingSignals.filter((item) => item !== signal) : [...profile.feedingSignals, signal];
+    setProfile({ feedingSignals: next, feedingSignalsConfirmed: true });
+  };
+  const complete = profile.stageConfirmed && profile.feedingSignalsConfirmed;
   return (
     <Screen className="onboarding-screen">
       <TopBar title="建立宝宝档案" eyebrow="3 / 3" back="/onboarding/avoid" />
@@ -442,20 +464,21 @@ function OnboardingStage() {
       <section className="onboarding-card">
         <div className="question-icon mint"><UtensilsCrossed size={25} /></div>
         <span className="question-kicker">按真实表现来选</span>
-        <h1>满满现在吃到什么程度？</h1>
-        <p>不是考试，也不必和月龄完全一致。请选择宝宝目前稳定能处理的质地。</p>
+        <h1>宝宝现在能稳定吃什么？</h1>
+        <p>不要按月龄推测。选择宝宝多数时候能顺利处理的最高阶段；介于两项之间时选前一项。</p>
         <div className="stage-list">
-          {stageOptions.map((option) => (
-            <button key={option.value} className={cx("stage-choice", profile.stage === option.value && "selected")} onClick={() => setProfile({ stage: option.value })}>
-              <span className="texture-sample">{option.sample}</span>
+          {stageOptions.map((option, index) => (
+            <button type="button" key={option.value} aria-pressed={profile.stageConfirmed && profile.stage === option.value} className={cx("stage-choice", profile.stageConfirmed && profile.stage === option.value && "selected")} onClick={() => chooseStage(option.value)}>
+              <span className="texture-sample">{index + 1}</span>
               <span><strong>{option.title}</strong><small>{option.desc}</small></span>
-              <span className="radio-dot">{profile.stage === option.value && <i />}</span>
+              <span className="radio-dot">{profile.stageConfirmed && profile.stage === option.value && <i />}</span>
             </button>
           ))}
         </div>
-        <div className="info-note"><CircleHelp size={17} /><span>不确定时，先选择宝宝已经稳定做到的阶段；结果页仍会给出质地检查方法。</span></div>
+        <div className="feeding-followup"><div><strong>最近常出现这些情况吗？</strong><small>可多选；用于让后续质地建议更保守</small></div><div className="signal-grid">{feedingSignalOptions.map((option) => <button type="button" key={option.value} aria-pressed={profile.feedingSignals.includes(option.value)} className={cx(profile.feedingSignals.includes(option.value) && "selected")} onClick={() => toggleSignal(option.value)}>{profile.feedingSignals.includes(option.value) && <Check size={14} />}{option.label}</button>)}<button type="button" className={cx(profile.feedingSignalsConfirmed && profile.feedingSignals.length === 0 && "selected safe")} aria-pressed={profile.feedingSignalsConfirmed && profile.feedingSignals.length === 0} onClick={() => setProfile({ feedingSignals: [], feedingSignalsConfirmed: true })}>{profile.feedingSignalsConfirmed && profile.feedingSignals.length === 0 && <Check size={14} />}暂时没有以上情况</button></div><label htmlFor="feeding-note">还有什么想补充？<span>可选</span></label><textarea id="feeding-note" value={profile.feedingNote} placeholder="例如：偶尔能吃颗粒，累的时候会吐出来" onChange={(event) => setProfile({ feedingNote: event.target.value.slice(0, 120) })} /></div>
+        {profile.feedingSignals.includes("swallowing-difficulty") && <div className="info-note risk-note"><ShieldAlert size={17} /><span>已记下吞咽费力。后续建议会优先采用更保守的质地；若持续出现或伴随其他异常，应咨询专业人员。</span></div>}
       </section>
-      <div className="screen-actions"><Button full onClick={() => { finish(); navigate("/home"); }}>完成档案，开始使用</Button></div>
+      <div className="screen-actions"><Button full disabled={!complete} onClick={() => { finish(); navigate("/home"); }}>完成宝宝档案</Button><p>{!profile.stageConfirmed ? "请先选择宝宝稳定能处理的阶段" : !profile.feedingSignalsConfirmed ? "请确认最近是否有进食困难" : "之后可以在宝宝档案中随时修改"}</p></div>
     </Screen>
   );
 }
@@ -463,6 +486,7 @@ function OnboardingStage() {
 function HomePage() {
   const navigate = useNavigate();
   const profile = useAppStore((state) => state.profile);
+  const history = useAppStore((state) => state.history);
   const cookPrepared = useAppStore((state) => state.cookPrepared);
   const cookStep = useAppStore((state) => state.cookStep);
   const riskInterrupted = useAppStore((state) => state.riskInterrupted);
@@ -492,6 +516,7 @@ function HomePage() {
     navigate("/analysis/shrimp-noodle-demo");
   };
   const hasCookingSession = cookPrepared || completedSteps.length > 0 || cookConversation.length > 0 || riskInterrupted;
+  const pendingObservation = history.find((item) => item.progress === "completed" && item.feedback && !item.feedback.observed);
   return (
     <Screen className="home-screen has-bottom-nav">
       <div className="home-hero">
@@ -520,6 +545,11 @@ function HomePage() {
         {hasCookingSession && <button className="home-resume-card" onClick={() => navigate("/cook/shrimp-noodle-demo/session")}>
           <span><Play size={14} fill="currentColor" /></span>
           <div><small>{riskInterrupted ? "陪做已暂停" : `做到第 ${cookStep} 步`}</small><strong>继续宝宝虾滑面</strong></div>
+          <ChevronRight size={18} />
+        </button>}
+        {!hasCookingSession && pendingObservation && <button className="home-resume-card observation" onClick={() => navigate(`/feedback/${pendingObservation.id}/later`)}>
+          <span><Clock3 size={15} /></span>
+          <div><small>稍后补充即可</small><strong>记录「{pendingObservation.recipeTitle}」的后续观察</strong></div>
           <ChevronRight size={18} />
         </button>}
       </section>
@@ -703,6 +733,76 @@ function RecipeResultPage() {
   const { conclusion = "adapted" } = useParams();
   const { setScenario } = useContext(ScenarioContext);
   const scenario = routeResults[conclusion] || "adapted";
+  const [view, setView] = useState<"baby" | "source">("baby");
+  useEffect(() => setScenario(scenario), [scenario, setScenario]);
+  const canCook = scenario === "adapted" || scenario === "direct";
+  const showStructuredResult = canCook || scenario === "needs-info";
+  return (
+    <Screen className="result-screen result-architecture-screen">
+      <TopBar title="适配结果" back="/home" />
+      <section className="result-recipe-hero">
+        <div className="result-recipe-mark"><BowlVisual /></div>
+        <div><span>{tomatoRiceAnalysis.source}</span><h1>{tomatoRiceAnalysis.title}</h1><p>约 {tomatoRiceAnalysis.timing.total} · 1 份</p></div>
+      </section>
+      {showStructuredResult ? (
+        <section className={cx("result-verdict", canCook ? "ready" : "pending")}>
+          <div className="result-verdict-icon">{canCook ? <ShieldCheck size={22} /> : <AlertCircle size={22} />}</div>
+          <div><span>给{tomatoRiceAnalysis.baby.name}的适配结论</span><h2>{canCook ? "调整后可以做" : `还需确认 ${tomatoRiceAnalysis.blockers.length} 项`}</h2><p>{canCook ? "已把原视频的软颗粒调整到稠粥与软饭之间，制作时仍以现场质地检查为准。" : `原视频颗粒质地高于${tomatoRiceAnalysis.baby.name}当前档案阶段；补齐关键信息前只展示暂定方案。`}</p></div>
+          <footer><Baby size={15} /><span>依据：{tomatoRiceAnalysis.baby.name} · {tomatoRiceAnalysis.baby.months} 个月 · {tomatoRiceAnalysis.baby.stage}</span></footer>
+        </section>
+      ) : (
+        <section className={cx("conclusion-card", suitabilityCopy[scenario].className)}>
+          <div className="conclusion-top"><span className="conclusion-icon">{scenario === "not-recommended" ? <ShieldAlert /> : <FileQuestion />}</span></div>
+          <span className="eyebrow">给{tomatoRiceAnalysis.baby.name}的适配结论</span>
+          <h2>{suitabilityCopy[scenario].label}</h2><h3>{suitabilityCopy[scenario].title}</h3><p>{resultSummary(scenario)}</p>
+          <div className="profile-evidence"><Baby size={16} /><span>依据：{tomatoRiceAnalysis.baby.name} · {tomatoRiceAnalysis.baby.months} 个月 · {tomatoRiceAnalysis.baby.stage}</span></div>
+        </section>
+      )}
+      {scenario === "needs-info" && <MissingInfoCard onResolve={() => navigate("/result/adapted")} />}
+      {scenario === "not-recommended" && <BlockedReasonCard />}
+      {scenario === "uncertain" && <UncertainCard />}
+      {showStructuredResult && <>
+        <div className="result-view-tabs" role="tablist" aria-label="结果视图">
+          <button role="tab" aria-selected={view === "baby"} className={cx(view === "baby" && "active")} onClick={() => setView("baby")}>宝宝版本{!canCook && <small>暂定</small>}</button>
+          <button role="tab" aria-selected={view === "source"} className={cx(view === "source" && "active")} onClick={() => setView("source")}>原视频解析</button>
+        </div>
+        <div role="tabpanel">{view === "baby" ? <BabyVersionResult provisional={!canCook} /> : <OriginalVideoResult />}</div>
+        <div className="result-spacer" />
+        <div className="result-primary-action">
+          <Button full onClick={() => canCook ? navigate("/cook/tomato-meat-rice-demo/session") : document.querySelector(".missing-info-card")?.scrollIntoView({ behavior: "smooth", block: "center" })} icon={canCook ? <MessageCircle size={18} /> : <ListChecks size={18} />}>{canCook ? "进入对话陪做" : "补充关键信息"}</Button>
+          <p>{canCook ? "陪做时一次只显示当前行动" : "确认前不会生成可直接执行的陪做步骤"}</p>
+        </div>
+      </>}
+      {!showStructuredResult && <div className="blocked-actions"><Button full onClick={() => scenario === "uncertain" ? navigate("/home") : navigate("/baby")}>{scenario === "uncertain" ? "换一条视频" : "核对宝宝档案"}</Button><Button full variant="secondary" onClick={() => navigate("/home")}>返回首页</Button></div>}
+    </Screen>
+  );
+}
+
+function BabyVersionResult({ provisional }: { provisional: boolean }) {
+  return <div className="baby-version-result">
+    {provisional && <div className="provisional-note"><Info size={16} /><span><strong>这是暂定调整方案</strong>补齐上方信息后，食材、质地或结论都可能改变。</span></div>}
+    <section className="result-content-section"><header><div><span>先看这三件事</span><h2>乐乐版关键调整</h2></div></header><div className="key-adjustment-list">{tomatoRiceAnalysis.adjustments.map((item, index) => <article key={item.title}><span>{index + 1}</span><div><strong>{item.title}</strong><p>{item.detail}</p></div></article>)}</div></section>
+    <section className="result-content-section"><header><div><span>1 份用量</span><h2>调整后食材</h2></div></header><div className="analysis-ingredient-list">{tomatoRiceAnalysis.ingredients.map((item) => <article key={item.name}><div><strong>{item.name}</strong><span className={cx("fact-state", item.status)}>{item.status === "unknown" ? "待确认" : item.status === "adapted" ? "宝宝版调整" : item.source}</span></div><p>{item.amount}</p><small>{item.prep} · {item.source}</small></article>)}</div></section>
+    <section className="result-content-section"><header><div><span>为什么要这样改</span><h2>原视频 → 乐乐版</h2></div></header><div className="difference-list">{tomatoRiceAnalysis.differences.map((item) => <article key={item.label}><strong>{item.label}</strong><div><span><small>原视频</small>{item.original}</span><ChevronRight size={16} /><span><small>乐乐版</small>{item.adapted}</span></div></article>)}</div></section>
+    <section className="result-content-section cook-plan-preview"><header><div><span>进入陪做后一次只看一步</span><h2>70–75 分钟 · 6 个阶段</h2></div></header><div className="time-metrics"><div><span>实际操作</span><strong>{tomatoRiceAnalysis.timing.active}</strong></div><div><span>机器焖煮</span><strong>{tomatoRiceAnalysis.timing.machine}</strong></div><div><span>总耗时</span><strong>{tomatoRiceAnalysis.timing.total}</strong></div></div><div className="phase-timeline">{tomatoRiceAnalysis.phases.map((phase, index) => <article key={phase.title}><div className="phase-marker"><span>{index + 1}</span><i /></div><div><small>{phase.time}</small><strong>{phase.title}</strong><p>{phase.action}</p><em><CheckCircle2 size={13} />{phase.check}</em></div></article>)}</div></section>
+    <section className="result-final-check"><h2>喂前检查</h2><p><CheckCircle2 size={15} />米粒可压开 · 肉末无团 · 青菜无长纤维 · 温度适宜 · 坐直看护</p><div><ShieldAlert size={15} /><span>若有新食材，不要在同一餐一次引入多种；喂食后记录接受、吞咽和身体反应。</span></div></section>
+  </div>;
+}
+
+function OriginalVideoResult() {
+  return <div className="source-result">
+    <div className="source-boundary"><Info size={16} /><span>这里展示判断依据。标记“待确认”的内容没有被视频可靠说明，不会自动当作事实。</span></div>
+    <section className="result-content-section"><header><div><span>画面与字幕整理</span><h2>原始方案</h2></div></header><p className="source-summary">{tomatoRiceAnalysis.summary}</p><div className="source-fact-list">{tomatoRiceAnalysis.originalFacts.map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}</div></section>
+    <section className="result-content-section"><header><div><span>与宝宝档案逐项对照</span><h2>适配评估</h2></div></header><div className="dimension-list">{tomatoRiceAnalysis.dimensions.map(([label, status]) => <div key={label}><span>{label}</span><strong className={cx(status.includes("适合") || status.includes("未发现") ? "safe" : status.includes("调整") ? "adjust" : "pending")}>{status}</strong></div>)}</div></section>
+    <section className="result-content-section"><header><div><span>原视频默认宝宝已经具备</span><h2>所需进食能力</h2></div></header><ul className="capability-list">{tomatoRiceAnalysis.capabilities.map((item) => <li key={item}><Check size={14} />{item}</li>)}</ul></section>
+  </div>;
+}
+
+function LegacyRecipeResultPage() {
+  const navigate = useNavigate();
+  const { conclusion = "adapted" } = useParams();
+  const { setScenario } = useContext(ScenarioContext);
+  const scenario = routeResults[conclusion] || "adapted";
   const copy = suitabilityCopy[scenario];
   const serving = useAppStore((state) => state.serving);
   const setServing = useAppStore((state) => state.setServing);
@@ -791,6 +891,9 @@ function RecipeResultPage() {
   );
 }
 
+// 旧结果页暂时保留其分享卡片与份量换算演示，避免影响本分支之外仍在引用的交互资产。
+void LegacyRecipeResultPage;
+
 function resolveIngredient(ingredient: Ingredient, broccoli: "keep" | "omit" | "carrot") {
   if (ingredient.id !== "broccoli") return ingredient;
   if (broccoli === "omit") return { ...ingredient, amount: "本次不放", note: "已从后续步骤移除" };
@@ -806,8 +909,21 @@ function resultSummary(scenario: Suitability) {
 }
 
 function MissingInfoCard({ onResolve }: { onResolve: () => void }) {
-  const [choice, setChoice] = useState("");
-  return <section className="resolution-card"><h2>满满以前吃过虾吗？</h2><p>选择后会重新检查适配结论。</p><div className="segmented-options"><button className={cx(choice === "yes" && "selected")} onClick={() => setChoice("yes")}>吃过且无异常</button><button className={cx(choice === "no" && "selected")} onClick={() => setChoice("no")}>没有吃过</button><button className={cx(choice === "unknown" && "selected")} onClick={() => setChoice("unknown")}>不确定</button></div><Button full disabled={!choice || choice === "unknown"} onClick={onResolve}>重新生成宝宝版本</Button></section>;
+  const [answers, setAnswers] = useState<Record<string, "safe" | "unclear">>({});
+  const [checked, setChecked] = useState(false);
+  const answered = tomatoRiceAnalysis.blockers.every((item) => answers[item.id]);
+  const canResolve = answered && Object.values(answers).every((value) => value === "safe");
+  const choices: Record<string, [string, string]> = {
+    meatball: ["已核对完整配料", "暂时不清楚"],
+    history: ["这些食材都吃过", "有没吃过的食材"],
+    cooking: ["全熟且没有额外调味", "熟度或调味不明确"],
+  };
+  return <section className="missing-info-card">
+    <header><span><ListChecks size={18} /></span><div><small>会改变最终判断</small><h2>开始前必须确认</h2></div></header>
+    <div className="blocking-question-list">{tomatoRiceAnalysis.blockers.map((item, index) => <article key={item.id}><div><span>{index + 1}</span><p><strong>{item.title}</strong><small>{item.detail}</small></p></div><div className="blocking-options">{choices[item.id].map((label, optionIndex) => { const value = optionIndex === 0 ? "safe" : "unclear"; return <button type="button" key={label} aria-pressed={answers[item.id] === value} className={cx(answers[item.id] === value && "selected")} onClick={() => { setAnswers((current) => ({ ...current, [item.id]: value })); setChecked(false); }}>{answers[item.id] === value && <Check size={13} />}{label}</button>; })}</div></article>)}</div>
+    {checked && !canResolve && <div className="blocking-result"><ShieldAlert size={17} /><span><strong>目前还不能进入陪做</strong>存在未确认或未尝试的食材，需要拆分尝试或换一道信息更完整的菜谱。</span></div>}
+    <Button full disabled={!answered} onClick={() => canResolve ? onResolve() : setChecked(true)}>重新计算适配结论</Button>
+  </section>;
 }
 
 function BlockedReasonCard() {
@@ -991,6 +1107,127 @@ function ReplaceSheet({ current, onApply, onClose }: { current: "keep" | "omit" 
 }
 
 function CookSessionPage() {
+  const { id } = useParams();
+  return id === tomatoRiceAnalysis.id ? <TomatoRiceConversationPage /> : <ShrimpCookSessionPage />;
+}
+
+function LegacyTomatoRiceCookSessionPage() {
+  const navigate = useNavigate();
+  const [stepIndex, setStepIndex] = useState(0);
+  const [timerEndAt, setTimerEndAt] = useState<number | null>(null);
+  const [finished, setFinished] = useState(false);
+  const phase = tomatoRiceAnalysis.phases[stepIndex];
+  const progress = finished ? 100 : ((stepIndex + .35) / tomatoRiceAnalysis.phases.length) * 100;
+  return <Screen className="cook-session-screen tomato-cook-session">
+    <header className="session-header">
+      <IconButton className="back-button" label="退出陪做" onClick={() => navigate("/result/adapted", { state: { transition: "back" } })}><ArrowLeft size={20} /></IconButton>
+      <div className="session-progress"><span style={{ width: `${progress}%` }} /></div>
+      <span className="tomato-session-count">{finished ? "完成" : `${stepIndex + 1} / ${tomatoRiceAnalysis.phases.length}`}</span>
+    </header>
+    <div className="session-context"><span>{tomatoRiceAnalysis.title}</span></div>
+    <div className="conversation-timeline" aria-live="polite">
+      <AssistantMessage><p>我们按乐乐版来做。我每次只给你当前行动；原视频里没有确认的食材和调味，不会自动加入。</p></AssistantMessage>
+      {!finished ? <>
+        <AssistantMessage><article className="conversation-step"><div className="conversation-step-head"><span>{phase.time}</span></div><h2>{phase.title}</h2><p>{phase.action}</p><div className="inline-check"><strong>做到什么算完成？</strong><span>{phase.check}</span></div>{stepIndex === 0 && <div className="parallel-prep-note"><ListChecks size={15} /><span>这四项可以并行准备，不需要等前一项完成再开始下一项。</span></div>}{stepIndex === 2 && <CookingTimer duration={3600} endAt={timerEndAt} setEndAt={setTimerEndAt} />}{stepIndex === 3 && <div className="inline-tip"><Bell size={15} /><span>这一步应该在焖煮剩余约 20 分钟时执行。</span></div>}</article></AssistantMessage>
+      </> : <AssistantMessage><div className="tomato-cook-complete"><CheckCircle2 size={28} /><h2>这份软饭完成了</h2><p>喂之前再确认：米粒能压开、肉末没有结团、青菜没有粗梗或长纤维，温度适宜。</p></div></AssistantMessage>}
+    </div>
+    <div className="session-dock tomato-session-dock">
+      {!finished ? <Button full onClick={() => { setTimerEndAt(null); if (stepIndex === tomatoRiceAnalysis.phases.length - 1) setFinished(true); else setStepIndex((current) => current + 1); }}>{stepIndex === tomatoRiceAnalysis.phases.length - 1 ? "完成制作" : "已经达到这个状态"}</Button> : <Button full onClick={() => navigate("/result/adapted")}>返回宝宝版本</Button>}
+      <p className="session-boundary">实际熟制状态请以现场检查为准</p>
+    </div>
+  </Screen>;
+}
+
+void LegacyTomatoRiceCookSessionPage;
+
+type TomatoCookMessage = { id: string; role: "user" | "assistant"; text: string; step: number };
+
+function TomatoRiceConversationPage() {
+  const navigate = useNavigate();
+  const [stepIndex, setStepIndex] = useState(0);
+  const [completed, setCompleted] = useState<number[]>([]);
+  const [messages, setMessages] = useState<TomatoCookMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [voiceMode, setVoiceMode] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [timerEndAt, setTimerEndAt] = useState<number | null>(null);
+  const timelineRef = useRef<HTMLDivElement>(null);
+  const phase = tomatoRiceAnalysis.phases[stepIndex];
+  const progress = ((completed.length + .35) / tomatoRiceAnalysis.phases.length) * 100;
+  const speak = (text: string) => {
+    void childVoiceTts.speak(text);
+  };
+  useEffect(() => {
+    timelineRef.current?.scrollTo({ top: timelineRef.current.scrollHeight, behavior: "smooth" });
+  }, [stepIndex, messages.length]);
+  useEffect(() => {
+    if (voiceMode) speak(`${phase.title}。${phase.action}。完成状态：${phase.check}`);
+    // Only read the newly active action.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stepIndex]);
+  const toggleVoice = () => {
+    const next = !voiceMode;
+    setVoiceMode(next);
+    if (next) speak(`${phase.title}。${phase.action}。完成状态：${phase.check}`);
+    else childVoiceTts.cancel();
+  };
+  const answerQuestion = (raw = input) => {
+    const value = raw.trim();
+    if (!value) return;
+    const userMessage: TomatoCookMessage = { id: `${Date.now()}-user`, role: "user", text: value, step: stepIndex };
+    const answer = /为什么|原因/.test(value)
+      ? `这一步这样处理，是为了让成品质地更接近乐乐当前能稳定处理的范围。完成时请看实际状态：${phase.check}。`
+      : /多久|时间|还要/.test(value)
+        ? `当前阶段的时间提示是“${phase.time}”。计时只作提醒，是否完成仍要看：${phase.check}。`
+        : /硬|大块|成团|纤维/.test(value)
+          ? `先不要进入下一步。继续压细或软化，直到达到这个状态：${phase.check}。`
+          : `我记下了。当前先完成“${phase.title}”，判断标准是：${phase.check}。`;
+    setMessages((current) => [...current, userMessage, { id: `${Date.now()}-assistant`, role: "assistant", text: answer, step: stepIndex }]);
+    setInput("");
+    if (voiceMode) window.setTimeout(() => speak(answer), 80);
+  };
+  const simulateVoice = () => {
+    setRecording(true);
+    window.setTimeout(() => { setRecording(false); setInput("这一步做到什么程度算完成？"); }, 900);
+  };
+  const finishStep = () => {
+    const doneNumber = stepIndex;
+    setCompleted((current) => [...current, doneNumber]);
+    setMessages((current) => [...current, { id: `${Date.now()}-done`, role: "user", text: "已经达到这个状态", step: doneNumber }]);
+    setTimerEndAt(null);
+    if (stepIndex === tomatoRiceAnalysis.phases.length - 1) {
+      childVoiceTts.cancel();
+      navigate(`/feedback/${tomatoRiceAnalysis.id}/now`);
+      return;
+    }
+    setStepIndex((current) => current + 1);
+  };
+  return <Screen className="cook-session-screen tomato-cook-session">
+    <header className="session-header">
+      <IconButton className="back-button" label="退出陪做" onClick={() => navigate("/result/adapted", { state: { transition: "back" } })}><ArrowLeft size={20} /></IconButton>
+      <div className="session-progress"><span style={{ width: `${progress}%` }} /></div>
+      <button className={cx("voice-mode", voiceMode && "active")} onClick={toggleVoice}><Volume2 size={16} />{voiceMode ? childVoiceTts.isNeuralConfigured ? "宝宝音色中" : "柔和语音中" : childVoiceTts.isNeuralConfigured ? "开启宝宝音色" : "开启柔和语音"}</button>
+    </header>
+    <div className="session-context"><span>{tomatoRiceAnalysis.title}</span></div>
+    <div className="conversation-timeline" ref={timelineRef} aria-live="polite">
+      <AssistantMessage><p>我们按乐乐版来做。接下来每次只说当前行动；你可以直接打字或用语音问我。</p></AssistantMessage>
+      {completed.map((number) => {
+        const done = tomatoRiceAnalysis.phases[number];
+        return <div className="conversation-pair completed" key={number}><AssistantMessage><article className="conversation-step completed"><div className="conversation-step-head"><span>{done.time}</span><CheckCircle2 size={16} /></div><h2>{done.title}</h2></article></AssistantMessage><UserMessage>已经达到这个状态</UserMessage></div>;
+      })}
+      <AssistantMessage><article className="conversation-step"><div className="conversation-step-head"><span>当前行动 {stepIndex + 1} · {phase.time}</span></div><h2>{phase.title}</h2><p>{phase.action}</p><div className="inline-check"><strong>做到什么算完成？</strong><span>{phase.check}</span></div>{stepIndex === 0 && <div className="parallel-prep-note"><ListChecks size={15} /><span>这四项可以同时准备，不需要等前一项完成。</span></div>}{stepIndex === 2 && <CookingTimer duration={3600} endAt={timerEndAt} setEndAt={setTimerEndAt} />}{stepIndex === 3 && <div className="inline-tip"><Bell size={15} /><span>焖煮剩余约 20 分钟时执行这一步。</span></div>}</article></AssistantMessage>
+      {messages.filter((message) => message.step === stepIndex && !message.id.endsWith("-done")).map((message) => message.role === "user" ? <UserMessage key={message.id}>{message.text}</UserMessage> : <AssistantMessage key={message.id}><p>{message.text}</p></AssistantMessage>)}
+    </div>
+    <div className="session-dock tomato-conversation-dock">
+      <p className="session-boundary"><Info size={12} />实际熟制状态请以现场检查为准</p>
+      <div className="quick-action-heading"><strong>直接操作</strong><span>也可以在下方语音或打字提问</span></div>
+      <div className="session-suggestions"><button className="primary-suggestion" onClick={finishStep}><CheckCircle2 size={14} />{stepIndex === tomatoRiceAnalysis.phases.length - 1 ? "完成并记录反馈" : "已经达到完成状态"}</button><button onClick={() => answerQuestion("这一步为什么要这样做？")}><MessageCircle size={14} />为什么这样做</button>{stepIndex === 4 && <button onClick={() => answerQuestion("米粒还是有点硬")}><Timer size={14} />米粒还硬</button>}</div>
+      <div className={cx("session-composer", recording && "recording")}><IconButton label="语音输入" onClick={simulateVoice}><Mic size={19} /></IconButton><input value={recording ? "正在听…" : input} disabled={recording} placeholder={voiceMode ? "直接说，或在这里输入" : "问问当前这一步"} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => event.key === "Enter" && answerQuestion()} /><IconButton className="composer-send" label="发送" disabled={!input.trim()} onClick={() => answerQuestion()}><Send size={18} /></IconButton></div>
+    </div>
+  </Screen>;
+}
+
+function ShrimpCookSessionPage() {
   const navigate = useNavigate();
   const stepNumber = useAppStore((state) => state.cookStep);
   const cookPrepared = useAppStore((state) => state.cookPrepared);
@@ -1026,9 +1263,7 @@ function CookSessionPage() {
   const timelineRef = useRef<HTMLDivElement>(null);
   const gateway = useMemo(() => createAiGateway(), []);
   const speak = (text: string) => {
-    if (!("speechSynthesis" in window)) return;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+    void childVoiceTts.speak(text);
   };
   useEffect(() => {
     timelineRef.current?.scrollTo({ top: timelineRef.current.scrollHeight, behavior: "smooth" });
@@ -1091,7 +1326,7 @@ function CookSessionPage() {
     const next = !voiceMode;
     setVoiceMode(next);
     if (!next) {
-      window.speechSynthesis?.cancel();
+      childVoiceTts.cancel();
       return;
     }
     try {
@@ -1116,7 +1351,7 @@ function CookSessionPage() {
         return canGoBack ? navigate(-1) : navigate("/result/adapted", { replace: true, state: { transition: "back" } });
       }}><ArrowLeft size={20} /></IconButton>
       <div className="session-progress"><span style={{ width: `${progress}%` }} /></div>
-      <button className={cx("voice-mode", voiceMode && "active")} onClick={toggleVoiceMode}><Volume2 size={16} />{voiceMode ? "语音陪伴中" : "保持语音"}</button>
+      <button className={cx("voice-mode", voiceMode && "active")} onClick={toggleVoiceMode}><Volume2 size={16} />{voiceMode ? childVoiceTts.isNeuralConfigured ? "宝宝音色中" : "柔和语音中" : childVoiceTts.isNeuralConfigured ? "开启宝宝音色" : "开启柔和语音"}</button>
     </header>
     <div className="session-context"><span>宝宝虾滑面</span></div>
     <div className="conversation-timeline" ref={timelineRef} aria-live="polite">
@@ -1195,6 +1430,10 @@ const feedbackGroups = [
 
 function FeedbackPage() {
   const navigate = useNavigate();
+  const { id = "shrimp-noodle-demo" } = useParams();
+  const isTomatoRecipe = id === tomatoRiceAnalysis.id;
+  const recipeTitle = isTomatoRecipe ? tomatoRiceAnalysis.title : "宝宝虾滑面";
+  const babyName = isTomatoRecipe ? tomatoRiceAnalysis.baby.name : "满满";
   const feedback = useAppStore((state) => state.feedback);
   const setFeedback = useAppStore((state) => state.setFeedback);
   const completeRecipe = useAppStore((state) => state.completeRecipe);
@@ -1205,11 +1444,12 @@ function FeedbackPage() {
   const addNote = (value: string) => setNote((current) => current.includes(value) ? current : [current.trim(), value].filter(Boolean).join("；"));
   const submit = () => {
     setFeedback({ note });
-    completeRecipe();
-    navigate("/feedback/shrimp-noodle-demo/later");
+    completeRecipe({ id, title: recipeTitle });
+    navigate("/home", { replace: true });
   };
-  return <Screen className="post-meal-feedback-screen"><TopBar title="用餐反馈" back="/cook/shrimp-noodle-demo/complete" />
-    <section className="feedback-meal-hero"><div className="feedback-bowl"><BowlVisual /></div><div><span>宝宝虾滑面</span><h1>满满吃得怎么样？</h1><p>约 1 分钟完成，帮助下次更贴近宝宝。</p></div></section>
+  const noteSuggestions = isTomatoRecipe ? ["米饭可以再软些", "肉末可以再细些", "宝宝愿意再吃"] : ["面条可以再软些", "虾滑可以再小些", "宝宝愿意再吃"];
+  return <Screen className="post-meal-feedback-screen"><TopBar title="用餐反馈" back={isTomatoRecipe ? "/home" : "/cook/shrimp-noodle-demo/complete"} />
+    <section className="feedback-meal-hero"><div className="feedback-bowl"><BowlVisual /></div><div><span>{recipeTitle}</span><h1>{babyName}吃得怎么样？</h1><p>约 1 分钟完成，帮助下次更贴近宝宝。</p></div></section>
     <div className="feedback-completion"><span><i style={{ width: `${(completedCount / 3) * 100}%` }} /></span><strong>{completedCount} / 3 已选</strong></div>
     <div className="feedback-form-sections">
       {feedbackGroups.map((group) => {
@@ -1218,19 +1458,21 @@ function FeedbackPage() {
       })}
       {feedback.swallowing === "difficulty" && <div className="texture-followup"><Info size={16} /><span>已记下质地偏难。下次适配时会优先调整得更软、更小。</span></div>}
       {feedback.swallowing === "unusual" && <div className="risk-interruption feedback-risk"><ShieldAlert size={21} /><div><strong>先停止喂食并观察宝宝</strong><p>若出现呼吸困难、明显肿胀、精神状态异常或症状快速加重，请立即寻求紧急医疗帮助。</p></div></div>}
-      <section className="feedback-form-card note-card"><header><div><h2>还想记下什么？</h2><p>可选，一句话就够了</p></div><span>可选</span></header><div className="note-suggestions">{["面条可以再软些", "虾滑可以再小些", "宝宝愿意再吃"].map((value) => <button key={value} onClick={() => addNote(value)}>{value}</button>)}</div><textarea id="feedback-note" value={note} placeholder="例如：前几口很顺利，后面开始转头" onChange={(event) => setNote(event.target.value)} /></section>
+      <section className="feedback-form-card note-card"><header><div><h2>还想记下什么？</h2><p>可选，一句话就够了</p></div><span>可选</span></header><div className="note-suggestions">{noteSuggestions.map((value) => <button key={value} onClick={() => addNote(value)}>{value}</button>)}</div><textarea id="feedback-note" value={note} placeholder="例如：前几口很顺利，后面开始转头" onChange={(event) => setNote(event.target.value)} /></section>
     </div>
-    <div className="feedback-form-spacer" /><div className="feedback-submit-bar"><div><span>{complete ? "已完成必填项" : `还差 ${3 - completedCount} 项`}</span><small>保存后可继续记录稍后观察</small></div><Button disabled={!complete} onClick={submit}>{feedback.swallowing === "unusual" ? "保存并进入观察" : "保存这次反馈"}</Button></div>
+    <div className="feedback-form-spacer" /><div className="feedback-submit-bar"><div><span>{complete ? "已完成必填项" : `还差 ${3 - completedCount} 项`}</span><small>保存后返回首页；稍后观察会留在首页待办</small></div><Button disabled={!complete} onClick={submit}>保存并返回首页</Button></div>
   </Screen>;
 }
 
 function LaterFeedbackPage() {
   const navigate = useNavigate();
-  const setFeedback = useAppStore((state) => state.setFeedback);
+  const { id = "shrimp-noodle-demo" } = useParams();
+  const recipeTitle = id === tomatoRiceAnalysis.id ? tomatoRiceAnalysis.title : "宝宝虾滑面";
+  const saveObservation = useAppStore((state) => state.saveObservation);
   const [observed, setObserved] = useState("");
   const [saved, setSaved] = useState(false);
-  const submit = () => { setFeedback({ observed: observed as "normal" | "unsure" | "unusual" }); setSaved(true); window.setTimeout(() => navigate("/history/shrimp-noodle-demo"), 800); };
-  return <Screen className="feedback-screen later-screen"><TopBar title="稍后观察" back="/home" /><section className="observation-hero"><span><Clock3 size={24} /></span><h1>宝宝虾滑面还差一次观察记录</h1><p>即时反馈已经保存。稍后回来看一眼，帮助区分“接受程度”和“身体情况”。</p></section><section className="observation-card"><h2>之后有观察到什么吗？</h2><div className="feedback-options compact"><button className={cx(observed === "normal" && "selected")} onClick={() => setObserved("normal")}><span><strong>没有观察到异常</strong><small>状态和平时一样</small></span><span className="radio-dot">{observed === "normal" && <i />}</span></button><button className={cx(observed === "unsure" && "selected")} onClick={() => setObserved("unsure")}><span><strong>不太确定</strong><small>继续保留为待观察</small></span><span className="radio-dot">{observed === "unsure" && <i />}</span></button><button className={cx(observed === "unusual" && "selected", "risk")} onClick={() => setObserved("unusual")}><span><strong>出现疑似异常</strong><small>记录细节并查看下一步</small></span><span className="radio-dot">{observed === "unusual" && <i />}</span></button></div>{observed === "unusual" && <div className="risk-interruption"><ShieldAlert size={21} /><div><strong>这条记录不会自动把食材标记为安全</strong><p>请记录发生时间和表现；如症状明显或持续，请及时寻求专业帮助。</p></div></div>}</section><div className="screen-actions"><Button full disabled={!observed} onClick={submit}>保存观察结果</Button><Button full variant="ghost" onClick={() => navigate("/home")}>稍后再记录</Button></div><AnimatePresence>{saved && <Toast>观察结果已保存</Toast>}</AnimatePresence></Screen>;
+  const submit = () => { saveObservation(id, observed as "normal" | "unsure" | "unusual"); setSaved(true); window.setTimeout(() => navigate("/home", { replace: true }), 500); };
+  return <Screen className="feedback-screen later-screen"><TopBar title="稍后观察" back="/home" /><section className="observation-hero"><span><Clock3 size={24} /></span><h1>{recipeTitle}还差一次观察记录</h1><p>即时反馈已经保存。稍后回来看一眼，帮助区分“接受程度”和“身体情况”。</p></section><section className="observation-card"><h2>之后有观察到什么吗？</h2><div className="feedback-options compact"><button className={cx(observed === "normal" && "selected")} onClick={() => setObserved("normal")}><span><strong>没有观察到异常</strong><small>状态和平时一样</small></span><span className="radio-dot">{observed === "normal" && <i />}</span></button><button className={cx(observed === "unsure" && "selected")} onClick={() => setObserved("unsure")}><span><strong>不太确定</strong><small>继续保留为待观察</small></span><span className="radio-dot">{observed === "unsure" && <i />}</span></button><button className={cx(observed === "unusual" && "selected", "risk")} onClick={() => setObserved("unusual")}><span><strong>出现疑似异常</strong><small>记录细节并查看下一步</small></span><span className="radio-dot">{observed === "unusual" && <i />}</span></button></div>{observed === "unusual" && <div className="risk-interruption"><ShieldAlert size={21} /><div><strong>这条记录不会自动把食材标记为安全</strong><p>请记录发生时间和表现；如症状明显或持续，请及时寻求专业帮助。</p></div></div>}</section><div className="screen-actions"><Button full disabled={!observed} onClick={submit}>保存观察结果</Button><Button full variant="ghost" onClick={() => navigate("/home")}>稍后再记录</Button></div><AnimatePresence>{saved && <Toast>观察结果已保存</Toast>}</AnimatePresence></Screen>;
 }
 
 function HistoryPage() {

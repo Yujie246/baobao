@@ -38,6 +38,19 @@ npm test
 4. 生产构建；
 5. 生产 Worker 首页、深层路由与完整页面覆盖测试。
 
+## 宝宝音色
+
+语音使用腾讯云 TTS 的超自然聊天童声 `502007 智小虎`。浏览器只访问站内 `POST /api/tts`，腾讯云密钥由服务端读取，不会打包进前端；未配置或请求失败时自动使用设备中文语音，页面流程不会中断。
+
+本地调试时复制 `.env.example` 为 `.env.local`，填写腾讯云访问密钥：
+
+```bash
+TENCENTCLOUD_SECRET_ID=你的SecretId
+TENCENTCLOUD_SECRET_KEY=你的SecretKey
+```
+
+部署到 Vercel 时，在项目的 `Settings > Environment Variables` 中添加同名的两个变量，然后重新部署。无需 GPU、Python、Docker 或常驻语音服务器。正式使用前需要在腾讯云语音合成控制台开通服务并领取对应资源包。
+
 ## Mock 与真实 AI 边界
 
 - `app/mock-data.ts`：唯一业务 Fixture 来源，文件顶部有 `MOCK DATA ONLY` 标记；

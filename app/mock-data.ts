@@ -7,9 +7,16 @@ import type { BabyProfile, HistoryRecord, Recipe } from "./types";
  */
 export const defaultProfile: BabyProfile = {
   name: "满满",
-  months: 10,
+  months: 0,
   premature: false,
-  stage: "soft-lumps",
+  correctedMonths: null,
+  ageConfirmed: false,
+  stage: "puree",
+  stageConfirmed: false,
+  feedingSignals: [],
+  feedingSignalsConfirmed: false,
+  feedingNote: "",
+  avoidStatus: null,
   avoidFoods: [],
   triedFoods: ["鸡蛋", "面粉", "胡萝卜", "西蓝花"],
   completed: false,
@@ -17,6 +24,12 @@ export const defaultProfile: BabyProfile = {
 
 export const completedProfile: BabyProfile = {
   ...defaultProfile,
+  months: 10,
+  ageConfirmed: true,
+  stage: "soft-lumps",
+  stageConfirmed: true,
+  feedingSignalsConfirmed: true,
+  avoidStatus: "none",
   completed: true,
 };
 
@@ -49,6 +62,63 @@ export const shrimpNoodleRecipe: Recipe = {
     { id: 5, title: "组合并放凉", instruction: "把虾滑和蔬菜面盛出，剪短面条，放至适宜入口的温度。", detail: "首次盛少量，宝宝保持坐直并由照护者全程看护。", check: "质地、长度和温度都已再次检查。", tip: "以实际质地为准，不只看计时结束。" },
   ],
 };
+
+/**
+ * 内容.pdf 对应的结果页展示数据。
+ * 这里把“视频事实、未知项、宝宝版调整、执行计划”分开，避免 UI 把推断伪装成事实。
+ */
+export const tomatoRiceAnalysis = {
+  id: "tomato-meat-rice-demo",
+  title: "番茄肉酱青菜软饭",
+  source: "辅食视频解析",
+  baby: { name: "乐乐", months: 13, stage: "泥糊阶段" },
+  summary: "米饭、小米、番茄、猪肉丸和青菜焖成软饭，保留软米粒、肉末和蔬菜碎，由成人用勺喂食。",
+  blockers: [
+    { id: "meatball", title: "猪肉丸完整配料", detail: "确认是否还有蛋、淀粉、调味料等未展示成分" },
+    { id: "history", title: "主要食材尝试记录", detail: "确认猪肉、番茄、小米和青菜是否吃过" },
+    { id: "cooking", title: "熟制与调味情况", detail: "确认肉丸已经全熟，且没有未说明的调味" },
+  ],
+  adjustments: [
+    { title: "整体再软化", detail: "增加水量，做到稠粥与软饭之间；米粒能被勺背轻松压开" },
+    { title: "肉丸压成细末", detail: "避免肉块或肉团，拌入后仍要检查有没有结块" },
+    { title: "青菜去粗梗切细", detail: "焯软后切细，避免长纤维；在焖煮剩余 20 分钟时加入" },
+  ],
+  ingredients: [
+    { name: "番茄", amount: "约 1 个圣女果 / 半个大番茄", prep: "去皮、切碎", source: "视频画面识别", status: "identified" },
+    { name: "猪肉丸", amount: "1 个", prep: "蒸熟、压成细末", source: "视频明确", status: "unknown" },
+    { name: "大米＋小米", amount: "共 38 g", prep: "洗净、浸泡", source: "视频明确", status: "identified" },
+    { name: "青菜", amount: "用量未明确", prep: "焯软、去粗梗、切细", source: "画面识别", status: "unknown" },
+    { name: "食用油", amount: "用量未明确", prep: "只用于炒软番茄", source: "系统推断", status: "unknown" },
+    { name: "清水", amount: "没过食材并适当增加", prep: "按最终质地调整", source: "宝宝版调整", status: "adapted" },
+  ],
+  differences: [
+    { label: "米饭质地", original: "保留明显软饭颗粒", adapted: "稠粥与软饭之间，米粒可轻松压开" },
+    { label: "猪肉丸", original: "蒸熟后压碎", adapted: "压成细末，不能保留肉团" },
+    { label: "青菜", original: "焯水后切碎", adapted: "去粗梗并切得更细，避免长纤维" },
+    { label: "番茄", original: "去皮切块后炒软", adapted: "充分炒软并压散，避免较大果肉块" },
+    { label: "首次尝试", original: "视频未说明", adapted: "若含新食材，不在同一餐一次引入多种" },
+  ],
+  timing: { active: "15 分钟", machine: "60 分钟", total: "70–75 分钟" },
+  phases: [
+    { time: "0–10 分钟", title: "并行准备食材", action: "浸泡米和小米；蒸肉丸；番茄去皮切碎；青菜洗净", check: "所有生熟食材分开放置" },
+    { time: "10–15 分钟", title: "制作番茄肉酱", action: "番茄炒软压散，加入已经熟透并压细的肉末", check: "看不到明显肉团和大块番茄" },
+    { time: "第 15 分钟", title: "开始焖煮", action: "加入米、小米、番茄肉酱和水，启动 60 分钟焖煮", check: "水量比原视频略多" },
+    { time: "剩余 20 分钟", title: "加入青菜", action: "青菜焯软、去粗梗、切细后加入锅中", check: "没有粗梗和长纤维" },
+    { time: "焖煮结束", title: "检查最终质地", action: "检查米粒、肉末和青菜；必要时继续压碎并加温水调整", check: "米粒能压开、肉末无团、青菜无长纤维" },
+    { time: "约 5 分钟", title: "放凉并喂食", action: "放到适宜入口温度，宝宝坐直，小勺少量喂食", check: "每口吞咽后再喂下一口" },
+  ],
+  originalFacts: [
+    ["成品形态", "混合软饭，湿润黏稠，可见软颗粒"],
+    ["颗粒组成", "软米粒、肉末、番茄和青菜碎"],
+    ["喂食方式", "宝宝坐在餐椅，由成人用勺喂食"],
+    ["成品份量", "画面估计约 200 g"],
+  ],
+  capabilities: ["能稳定坐直", "接受成人勺喂", "能处理软米粒和细肉末", "能将混合颗粒转移并吞咽"],
+  dimensions: [
+    ["食材", "需确认"], ["调味", "信息不足"], ["熟制", "需确认"], ["质地", "需调整"],
+    ["大小形状", "需调整"], ["喂食方式", "基本适合"], ["新食材引入", "信息不足"], ["特殊情况", "未发现冲突"],
+  ],
+} as const;
 
 export const initialHistory: HistoryRecord[] = [
   { id: "pumpkin", recipeTitle: "南瓜鸡肉软饭", conclusion: "direct", date: "昨天", progress: "completed", feedback: { amount: "half", acceptance: "liked", swallowing: "smooth" } },

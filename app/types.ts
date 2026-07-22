@@ -7,11 +7,26 @@ export type Suitability =
 
 export type FoodStatus = "tried" | "untried" | "avoid" | "pending";
 
+export type FeedingStage = "puree" | "thick-puree" | "soft-lumps" | "finger-food";
+
+export type FeedingSignal =
+  | "gagging"
+  | "spitting"
+  | "texture-refusal"
+  | "swallowing-difficulty";
+
 export interface BabyProfile {
   name: string;
   months: number;
   premature: boolean;
-  stage: "puree" | "thick-puree" | "soft-lumps" | "finger-food";
+  correctedMonths: number | null;
+  ageConfirmed: boolean;
+  stage: FeedingStage;
+  stageConfirmed: boolean;
+  feedingSignals: FeedingSignal[];
+  feedingSignalsConfirmed: boolean;
+  feedingNote: string;
+  avoidStatus: "none" | "has" | null;
   avoidFoods: string[];
   triedFoods: string[];
   completed: boolean;

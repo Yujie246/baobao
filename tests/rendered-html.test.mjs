@@ -33,10 +33,12 @@ test("浏览器直接刷新深层路由不会返回 404", async () => {
 });
 
 test("实现包含完整页面闭环和统一 Mock 边界", async () => {
-  const [app, gateway, fixtures] = await Promise.all([
+  const [app, gateway, fixtures, tts, ttsRoute] = await Promise.all([
     readFile(new URL("../app/BabyBaoApp.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/ai-gateway.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/mock-data.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/tts-gateway.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/tts/route.ts", import.meta.url), "utf8"),
   ]);
   for (const route of [
     "/onboarding/age", "/onboarding/avoid", "/onboarding/stage", "/analysis/:id",
@@ -53,17 +55,35 @@ test("实现包含完整页面闭环和统一 Mock 边界", async () => {
   assert.match(app, /不构成真实喂养或医疗建议/);
   assert.doesNotMatch(app, /MockBadge|ScenarioPanel|试试宝宝虾滑面演示|恢复完整演示数据/);
   assert.match(app, /conversation-timeline/);
-  assert.match(app, /满满吃得怎么样？/);
+  assert.match(app, /吃得怎么样？/);
   assert.match(app, /吃了多少/);
   assert.match(app, /接受程度/);
   assert.match(app, /吞咽和即时情况/);
-  assert.match(app, /保持语音/);
+  assert.match(app, /开启柔和语音/);
   assert.match(app, /安排辅食/);
   assert.match(app, /食物地图/);
   assert.match(app, /foodJourneyStages/);
   assert.match(app, /food-character-slot/);
   assert.match(app, /19—24 月龄/);
   assert.match(app, /路线按月龄整理记录和计划/);
+  assert.match(app, /还需确认.*项/);
+  assert.match(app, /宝宝版本/);
+  assert.match(app, /原视频解析/);
+  assert.match(app, /开始前必须确认/);
+  assert.match(app, /进入对话陪做/);
+  assert.match(app, /完成并记录反馈/);
+  assert.match(app, /feedback\/\$\{tomatoRiceAnalysis\.id\}\/now/);
+  assert.match(app, /柔和语音中/);
+  assert.match(app, /保存并返回首页/);
+  assert.match(app, /稍后观察会留在首页待办/);
+  assert.match(fixtures, /番茄肉酱青菜软饭/);
+  assert.match(fixtures, /视频事实、未知项、宝宝版调整、执行计划/);
+  assert.match(tts, /\/api\/tts/);
+  assert.match(tts, /speakWithSystemFallback/);
+  assert.doesNotMatch(tts, /TENCENTCLOUD_SECRET_ID/);
+  assert.match(ttsRoute, /TENCENT_VOICE_TYPE = 502007/);
+  assert.match(ttsRoute, /TENCENTCLOUD_SECRET_ID/);
+  assert.match(ttsRoute, /tts\.tencentcloudapi\.com/);
   assert.doesNotMatch(app, /foodMapCategories/);
   assert.match(app, /FRONTEND PLACEHOLDER DATA/);
   assert.doesNotMatch(app, /这一步完成，继续/);
