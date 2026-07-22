@@ -499,11 +499,35 @@ function OnboardingStage() {
 
 // FRONTEND PLACEHOLDER DATA: 推荐服务接入前，只用于验证首页信息架构；不作为食物安全结论。
 const homeInspirationIdeas = [
-  { id: "pumpkin-rice", title: "南瓜鸡肉软饭", time: "约 15 分钟", foodId: "pumpkin" as FoodId, note: "软烂处理，匹配当前质地" },
-  { id: "broccoli-egg", title: "西兰花蒸蛋", time: "约 12 分钟", foodId: "broccoli" as FoodId, note: "熟悉食材，做法简单" },
-  { id: "carrot-tofu", title: "胡萝卜豆腐软饭", time: "约 18 分钟", foodId: "carrot" as FoodId, note: "容易压软，方便调整颗粒" },
-  { id: "banana-oat", title: "香蕉燕麦软饼", time: "约 10 分钟", foodId: "banana" as FoodId, note: "加餐灵感，质地仍需确认" },
+  { id: "pumpkin-rice", title: "南瓜鸡肉软饭", time: "约 15 分钟", foodId: "pumpkin" as FoodId, note: "软烂处理，匹配当前质地", ingredients: "熟米饭、南瓜、鸡肉", steps: [
+    { actionKind: "prepare", timing: "准备", title: "处理南瓜和鸡肉", instruction: "南瓜切小块；鸡肉切碎，生熟食材和工具分开。", check: "南瓜块大小接近，鸡肉没有明显筋膜。" },
+    { actionKind: "heat", timing: "约 10 分钟", title: "煮熟并压软", instruction: "把南瓜和鸡肉充分煮熟，再加入熟米饭和少量水煮至软烂。", check: "鸡肉中心完全熟透，米饭和南瓜能被勺背轻松压开。" },
+    { actionKind: "serve", timing: "约 2 分钟", title: "调整质地并放凉", instruction: "压散明显大块，按宝宝当前能力保留合适的小颗粒，放至适宜入口温度。", check: "没有硬块或肉团，温度适宜。" },
+  ] },
+  { id: "broccoli-egg", title: "西兰花蒸蛋", time: "约 12 分钟", foodId: "broccoli" as FoodId, note: "熟悉食材，做法简单", ingredients: "鸡蛋、西兰花、温水", steps: [
+    { actionKind: "prepare", timing: "准备", title: "处理西兰花", instruction: "西兰花只取软嫩花冠，焯软后切细。", check: "没有粗梗和长纤维。" },
+    { actionKind: "mix", timing: "约 2 分钟", title: "调好蛋液", instruction: "鸡蛋打散后加入温水，轻轻混匀，再放入西兰花碎。", check: "蛋液均匀，西兰花碎分散，没有大团。" },
+    { actionKind: "heat", timing: "约 10 分钟", title: "蒸熟并检查", instruction: "蒸至蛋液完全凝固，关火后检查中心，再放凉。", check: "中心完全凝固，没有流动蛋液，质地能轻松压碎。" },
+  ] },
+  { id: "carrot-tofu", title: "胡萝卜豆腐软饭", time: "约 18 分钟", foodId: "carrot" as FoodId, note: "容易压软，方便调整颗粒", ingredients: "熟米饭、胡萝卜、豆腐", steps: [
+    { actionKind: "prepare", timing: "准备", title: "切细胡萝卜和豆腐", instruction: "胡萝卜切细碎；豆腐压成小碎块，分别放置。", check: "胡萝卜碎均匀，豆腐没有明显大块。" },
+    { actionKind: "heat", timing: "约 12 分钟", title: "先把胡萝卜煮软", instruction: "胡萝卜加水煮到能轻松压开，再加入熟米饭继续煮软。", check: "胡萝卜和米粒都能被勺背压开。" },
+    { actionKind: "add", timing: "约 3 分钟", title: "加入豆腐并完成", instruction: "加入豆腐碎轻轻拌匀，彻底加热后调整稠度并放凉。", check: "豆腐已热透，整碗没有硬块，温度适宜。" },
+  ] },
+  { id: "banana-oat", title: "香蕉燕麦软饼", time: "约 10 分钟", foodId: "banana" as FoodId, note: "加餐灵感，质地仍需确认", ingredients: "香蕉、燕麦、鸡蛋", steps: [
+    { actionKind: "mix", timing: "约 2 分钟", title: "调成均匀面糊", instruction: "香蕉压成泥，与燕麦和鸡蛋混合均匀。", check: "面糊没有明显干粉或大块香蕉。" },
+    { actionKind: "heat", timing: "约 6 分钟", title: "小火煎熟两面", instruction: "摊成小而薄的饼，小火加热，定型后翻面，确保中心熟透。", check: "两面定型，掰开后中心没有湿黏生面糊。" },
+    { actionKind: "serve", timing: "约 2 分钟", title: "检查软度并放凉", instruction: "放凉后分成容易抓握的小块；偏硬时不要直接给宝宝。", check: "小饼能用手指轻松压扁，大小和温度适宜。" },
+  ] },
 ] as const;
+
+function inspirationIdeaById(id?: string) {
+  return homeInspirationIdeas.find((idea) => idea.id === id);
+}
+
+function recipeTitleById(id: string) {
+  return id === tomatoRiceAnalysis.id ? tomatoRiceAnalysis.title : inspirationIdeaById(id)?.title || "宝宝虾滑面";
+}
 
 function formatImportFileSize(bytes: number) {
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
@@ -622,7 +646,7 @@ function HomePage() {
       <section className="home-inspiration-section">
         <div className="home-section-heading"><div><h2>今日辅食灵感</h2></div><button type="button" aria-label="换一组辅食灵感" onClick={() => setIdeaOffset((current) => (current + 1) % homeInspirationIdeas.length)}><RefreshCw key={ideaOffset} size={14} />换一组</button></div>
         <div className="home-inspiration-track">
-          {inspirationIdeas.map((idea) => <article className="home-idea-card" key={idea.id}><div className="home-idea-visual"><FoodIllustration foodId={idea.foodId} alt="" /></div><span>{idea.time}</span><h3>{idea.title}</h3><p>{idea.note}</p><button onClick={() => navigate("/plan")}>加入计划<ChevronRight size={13} /></button></article>)}
+          {inspirationIdeas.map((idea) => <article className="home-idea-card" key={idea.id}><div className="home-idea-visual"><FoodIllustration foodId={idea.foodId} alt="" /><span>{idea.time}</span></div><h3>{idea.title}</h3><p>{idea.note}</p><button aria-label={`开始制作${idea.title}`} onClick={() => navigate(`/cook/${idea.id}/session`)}><Play size={12} />开始制作</button></article>)}
         </div>
       </section>
       <section className="home-dashboard-grid" aria-label="计划与探索">
@@ -1278,7 +1302,62 @@ function CookSessionPage() {
   const { id } = useParams();
   if (id === tomatoRiceAnalysis.id) return <TomatoRiceConversationPage />;
   if (id === "shrimp-noodle-demo") return <ShrimpCookSessionPage />;
+  const inspirationIdea = inspirationIdeaById(id);
+  if (inspirationIdea) return <InspirationCookSession idea={inspirationIdea} />;
   return <GeneratedCookSession jobId={id || ""} />;
+}
+
+function InspirationCookSession({ idea }: { idea: (typeof homeInspirationIdeas)[number] }) {
+  const navigate = useNavigate();
+  const [stepIndex, setStepIndex] = useState(0);
+  const [completed, setCompleted] = useState<number[]>([]);
+  const [messages, setMessages] = useState<Array<{ id: string; role: "user" | "assistant"; text: string; step: number }>>([]);
+  const [input, setInput] = useState("");
+  const [voiceMode, setVoiceMode] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const timelineRef = useRef<HTMLDivElement>(null);
+  const step = idea.steps[stepIndex];
+  const speak = (text: string) => void childVoiceTts.speak(text);
+  useEffect(() => { timelineRef.current?.scrollTo({ top: timelineRef.current.scrollHeight, behavior: "smooth" }); }, [stepIndex, messages.length]);
+  useEffect(() => {
+    if (voiceMode) speak(`${step.title}。${step.instruction}。完成状态：${step.check}`);
+    // Only read the newly active action.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stepIndex]);
+  const toggleVoice = () => {
+    const next = !voiceMode;
+    setVoiceMode(next);
+    if (next) speak(`${step.title}。${step.instruction}。完成状态：${step.check}`);
+    else childVoiceTts.cancel();
+  };
+  const ask = (raw = input) => {
+    const question = raw.trim();
+    if (!question) return;
+    const answer = /为什么|原因/.test(question)
+      ? `这样处理是为了让成品质地更稳定。当前请以现场完成状态为准：${step.check}`
+      : /多久|时间/.test(question)
+        ? `这一步预计${step.timing}。时间只是提醒，真正完成时应达到：${step.check}`
+        : `先不要急着进入下一步。请继续处理，直到达到这个状态：${step.check}`;
+    setMessages((current) => [...current, { id: `${Date.now()}-u`, role: "user", text: question, step: stepIndex }, { id: `${Date.now()}-a`, role: "assistant", text: answer, step: stepIndex }]);
+    setInput("");
+    if (voiceMode) window.setTimeout(() => speak(answer), 80);
+  };
+  const finishStep = () => {
+    setCompleted((current) => [...current, stepIndex]);
+    setMessages([]);
+    if (stepIndex === idea.steps.length - 1) {
+      childVoiceTts.cancel();
+      navigate(`/feedback/${idea.id}/now`);
+      return;
+    }
+    setStepIndex((current) => current + 1);
+  };
+  return <Screen className="cook-session-screen inspiration-cook-session">
+    <header className="session-header"><IconButton className="back-button" label="退出陪做" onClick={() => navigate("/home", { state: { transition: "back" } })}><ArrowLeft size={20} /></IconButton><div className="session-progress"><span style={{ width: `${((completed.length + .35) / idea.steps.length) * 100}%` }} /></div><button className={cx("voice-mode", voiceMode && "active")} onClick={toggleVoice}><Volume2 size={16} />{voiceMode ? "宝宝音色中" : "开启语音"}</button></header>
+    <div className="session-context"><span>{idea.title}</span><b>{stepIndex + 1} / {idea.steps.length}</b></div>
+    <div className="conversation-timeline" ref={timelineRef} aria-live="polite"><AssistantMessage><p>我们开始做{idea.title}。准备食材：{idea.ingredients}。接下来每次只完成当前行动，你可以随时语音或打字问我。</p></AssistantMessage>{completed.map((index) => <div className="conversation-pair completed" key={index}><AssistantMessage intent="confirm"><article className="conversation-step completed"><div className="conversation-step-head"><span>{idea.steps[index].timing}</span><CheckCircle2 size={16} /></div><h2>{idea.steps[index].title}</h2></article></AssistantMessage><UserMessage>已经达到这个状态</UserMessage></div>)}<AssistantMessage intent={resolveCookingIntent(step.actionKind)}><article className="conversation-step"><div className="conversation-step-head"><span>当前行动 {stepIndex + 1} · {step.timing}</span></div><h2>{step.title}</h2><p>{step.instruction}</p><div className="inline-check"><strong>做到什么算完成？</strong><span>{step.check}</span></div></article></AssistantMessage>{messages.filter((message) => message.step === stepIndex).map((message) => message.role === "user" ? <UserMessage key={message.id}>{message.text}</UserMessage> : <AssistantMessage key={message.id}><p>{message.text}</p></AssistantMessage>)}</div>
+    <div className="session-dock tomato-conversation-dock"><p className="session-boundary"><Info size={12} />实际熟制状态请以现场检查为准</p><div className="quick-action-heading"><strong>直接操作</strong><span>也可以在下方语音或打字提问</span></div><div className="session-suggestions"><button className="primary-suggestion" onClick={finishStep}><CheckCircle2 size={14} />{stepIndex === idea.steps.length - 1 ? "完成并记录反馈" : "已经达到完成状态"}</button><button onClick={() => ask("这一步为什么要这样做？")}><MessageCircle size={14} />为什么这样做</button></div><div className="session-composer"><IconButton label="语音输入" onClick={() => { setRecording(true); window.setTimeout(() => { setRecording(false); setInput("这一步做到什么程度算完成？"); }, 700); }}><Mic size={19} /></IconButton><input value={recording ? "正在听…" : input} disabled={recording} placeholder={voiceMode ? "直接说，或在这里输入" : "问问当前这一步"} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") ask(); }} /><IconButton className="composer-send" label="发送" disabled={!input.trim()} onClick={() => ask()}><Send size={18} /></IconButton></div></div>
+  </Screen>;
 }
 
 function GeneratedCookSession({ jobId }: { jobId: string }) {
@@ -1639,8 +1718,10 @@ function FeedbackPage() {
   const navigate = useNavigate();
   const { id = "shrimp-noodle-demo" } = useParams();
   const isTomatoRecipe = id === tomatoRiceAnalysis.id;
-  const recipeTitle = isTomatoRecipe ? tomatoRiceAnalysis.title : "宝宝虾滑面";
-  const babyName = isTomatoRecipe ? tomatoRiceAnalysis.baby.name : "满满";
+  const inspirationIdea = inspirationIdeaById(id);
+  const profileName = useAppStore((state) => state.profile.name);
+  const recipeTitle = recipeTitleById(id);
+  const babyName = isTomatoRecipe ? tomatoRiceAnalysis.baby.name : profileName;
   const feedback = useAppStore((state) => state.feedback);
   const setFeedback = useAppStore((state) => state.setFeedback);
   const completeRecipe = useAppStore((state) => state.completeRecipe);
@@ -1654,8 +1735,13 @@ function FeedbackPage() {
     completeRecipe({ id, title: recipeTitle });
     navigate("/home", { replace: true });
   };
-  const noteSuggestions = isTomatoRecipe ? ["米饭可以再软些", "肉末可以再细些", "宝宝愿意再吃"] : ["面条可以再软些", "虾滑可以再小些", "宝宝愿意再吃"];
-  return <Screen className="post-meal-feedback-screen"><TopBar title="用餐反馈" back={isTomatoRecipe ? "/home" : "/cook/shrimp-noodle-demo/complete"} />
+  const noteSuggestions = isTomatoRecipe
+    ? ["米饭可以再软些", "肉末可以再细些", "宝宝愿意再吃"]
+    : inspirationIdea
+      ? ["质地可以再软些", "宝宝愿意继续吃", "下次份量少一点"]
+      : ["面条可以再软些", "虾滑可以再小些", "宝宝愿意再吃"];
+  const feedbackBack = isTomatoRecipe ? "/home" : inspirationIdea ? `/cook/${id}/session` : "/cook/shrimp-noodle-demo/complete";
+  return <Screen className="post-meal-feedback-screen"><TopBar title="用餐反馈" back={feedbackBack} />
     <section className="feedback-meal-hero"><div className="feedback-bowl"><CharacterIllustration intent={feedback.swallowing === "unusual" ? "paused" : "plan"} size="support" /></div><div><span>{recipeTitle}</span><h1>{babyName}吃得怎么样？</h1><p>约 1 分钟完成，帮助下次更贴近宝宝。</p></div></section>
     <div className="feedback-completion"><span><i style={{ width: `${(completedCount / 3) * 100}%` }} /></span><strong>{completedCount} / 3 已选</strong></div>
     <div className="feedback-form-sections">
@@ -1674,7 +1760,7 @@ function FeedbackPage() {
 function LaterFeedbackPage() {
   const navigate = useNavigate();
   const { id = "shrimp-noodle-demo" } = useParams();
-  const recipeTitle = id === tomatoRiceAnalysis.id ? tomatoRiceAnalysis.title : "宝宝虾滑面";
+  const recipeTitle = recipeTitleById(id);
   const saveObservation = useAppStore((state) => state.saveObservation);
   const [observed, setObserved] = useState("");
   const [saved, setSaved] = useState(false);

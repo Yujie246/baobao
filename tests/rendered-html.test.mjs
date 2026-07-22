@@ -68,6 +68,11 @@ test("实现包含完整页面闭环和统一 Mock 边界", async () => {
   assert.match(app, /食物地图/);
   assert.match(app, /导入辅食视频/);
   assert.match(app, /今日辅食灵感/);
+  assert.match(app, /aria-label=\{`开始制作\$\{idea\.title\}`\}/);
+  assert.match(app, /navigate\(`\/cook\/\$\{idea\.id\}\/session`\)/);
+  assert.match(app, /function InspirationCookSession/);
+  assert.match(app, /navigate\(`\/feedback\/\$\{idea\.id\}\/now`\)/);
+  assert.doesNotMatch(app, /加入计划/);
   assert.match(app, /className=\{cx\("home-next-task"/);
   assert.match(app, /className="home-primary-flow"/);
   assert.match(app, /variant=\{hasNextTask \? "secondary" : "primary"\}/);
