@@ -1,26 +1,6 @@
-export type VoiceEngine = "tencent" | "system";
+export type VoiceEngine = "tencent" | "unavailable";
 
 const TTS_ENDPOINT = "/api/tts";
-
-function speakWithSystemFallback(text: string) {
-  if (!("speechSynthesis" in window)) return;
-  const synthesis = window.speechSynthesis;
-  const voices = synthesis.getVoices();
-  const chineseVoices = voices.filter((voice) => /^zh(?:-|_)/i.test(voice.lang));
-  const preferredNames = [/xiaoyi/i, /xiaoxiao/i, /ting[- ]?ting/i, /yu[- ]?shu/i, /meijia/i, /sin[- ]?ji/i, /huihui/i];
-  const voice = preferredNames
-    .map((pattern) => chineseVoices.find((candidate) => pattern.test(candidate.name)))
-    .find(Boolean)
-    ?? chineseVoices.find((candidate) => candidate.localService)
-    ?? chineseVoices[0];
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = voice?.lang || "zh-CN";
-  utterance.voice = voice || null;
-  utterance.rate = .9;
-  utterance.pitch = 1.04;
-  synthesis.cancel();
-  synthesis.speak(utterance);
-}
 
 class ChildVoiceTtsGateway {
   private audio: HTMLAudioElement | null = null;
@@ -40,7 +20,6 @@ class ChildVoiceTtsGateway {
       this.audio.currentTime = 0;
       this.audio = null;
     }
-    window.speechSynthesis?.cancel();
   }
 
   async speak(text: string): Promise<VoiceEngine> {
@@ -68,8 +47,7 @@ class ChildVoiceTtsGateway {
       await this.audio.play();
       return "tencent";
     } catch {
-      speakWithSystemFallback(text);
-      return "system";
+      return "unavailable";
     } finally {
       this.request = null;
     }

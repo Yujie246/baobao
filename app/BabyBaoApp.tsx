@@ -66,6 +66,8 @@ import {
   useParams,
 } from "react-router-dom";
 import { createAiGateway, type AnalysisProgress } from "./ai-gateway";
+import { CharacterIllustration, resolveCookingIntent, resolveResultIntent, type CharacterIntent } from "./character-illustrations";
+import { FoodIllustration, type FoodId } from "./food-illustrations";
 import { loadLocalState, saveLocalState } from "./local-db";
 import {
   demoLink,
@@ -205,11 +207,12 @@ function BottomNav() {
         <NavLink
           key={to}
           to={to}
+          data-no-ripple="true"
           state={{ transition: "tab", direction: Math.sign(index - currentIndex) }}
           className={({ isActive }) => cx("bottom-nav-item", isActive && "active")}
         >
-          <Icon size={20} strokeWidth={2} />
-          <span>{label}</span>
+          <span className="bottom-nav-icon" aria-hidden="true"><Icon size={21} strokeWidth={2} /></span>
+          <span className="bottom-nav-label">{label}</span>
         </NavLink>
       ))}
     </nav>
@@ -522,7 +525,7 @@ function HomePage() {
       <div className="home-hero">
         <header className="home-header">
           <div><span>宝宝饱饱</span><h1>今天给{profile.name}做什么？</h1></div>
-          <button className="baby-avatar" onClick={() => navigate("/baby")} aria-label="查看宝宝档案">满</button>
+          <button className="baby-avatar" onClick={() => navigate("/baby")} aria-label="查看宝宝档案"><CharacterIllustration intent="link" size="avatar" animate={false} /></button>
         </header>
         <div className="profile-pill"><Baby size={15} /><span>{profile.name} · {profile.months} 个月 · {stageLabels[profile.stage]}</span><ChevronRight size={15} /></div>
         <form className="paste-card" onSubmit={submit}>
@@ -553,7 +556,6 @@ function HomePage() {
           <ChevronRight size={18} />
         </button>}
       </section>
-      <BottomNav />
     </Screen>
   );
 }
@@ -570,29 +572,58 @@ const weeklyMeals = [
 const foodJourneyStages = [
   {
     age: "6 月龄", title: "第一次认识食物", note: "从少量、单一记录开始", state: "completed",
-    foods: [["高铁米粉", "米", "recorded"], ["南瓜", "南", "recorded"], ["土豆", "土", "recorded"], ["西蓝花", "西", "recorded"]],
+    foods: [
+      { id: "millet-porridge", name: "小米粥", fallback: "粥", state: "recorded" },
+      { id: "pumpkin", name: "南瓜", fallback: "南", state: "recorded" },
+      { id: "potato", name: "土豆", fallback: "土", state: "recorded" },
+      { id: "broccoli", name: "西兰花", fallback: "西", state: "recorded" },
+    ],
   },
   {
     age: "7—8 月龄", title: "慢慢丰富味道", note: "留下接受程度和质地记录", state: "completed",
-    foods: [["鸡蛋", "蛋", "recorded"], ["鸡肉", "鸡", "recorded"], ["牛肉", "牛", "recorded"], ["豆腐", "豆", "recorded"]],
+    foods: [
+      { id: "egg", name: "鸡蛋", fallback: "蛋", state: "recorded" },
+      { id: "carrot", name: "胡萝卜", fallback: "胡", state: "recorded" },
+      { id: "banana", name: "香蕉", fallback: "蕉", state: "recorded" },
+      { id: "pear", name: "梨", fallback: "梨", state: "recorded" },
+    ],
   },
   {
-    age: "9—10 月龄", title: "满满现在在这里", note: "软颗粒阶段 · 本站已点亮 2 / 4", state: "current",
-    foods: [["宝宝面", "面", "recorded"], ["胡萝卜", "胡", "recorded"], ["鲜虾", "虾", "planned"], ["三文鱼", "鱼", "future"]],
+    age: "9—10 月龄", title: "满满现在在这里", note: "软颗粒阶段 · 本站已点亮 5 / 5", state: "current",
+    foods: [
+      { id: "tofu", name: "豆腐", fallback: "豆", state: "recorded" },
+      { id: "corn", name: "玉米", fallback: "玉", state: "recorded" },
+      { id: "spinach", name: "菠菜", fallback: "菠", state: "recorded" },
+      { id: "apple", name: "苹果", fallback: "苹", state: "recorded" },
+      { id: "sweet-potato", name: "红薯", fallback: "薯", state: "recorded" },
+    ],
   },
   {
-    age: "11—12 月龄", title: "练习更多口感", note: "根据实际进食能力逐步展开", state: "future",
-    foods: [["山药", "山", "future"], ["燕麦", "麦", "future"], ["香蕉", "蕉", "future"], ["梨", "梨", "future"]],
+    age: "11—12 月龄", title: "继续认识新朋友", note: "一次安排一种新食材并留下记录", state: "future",
+    foods: [
+      { id: "salmon", name: "三文鱼", fallback: "鱼", state: "planned" },
+    ],
   },
   {
-    age: "13—18 月龄", title: "走向家庭餐桌", note: "继续积累不同类别和做法", state: "future",
-    foods: [["番茄", "番", "future"], ["玉米", "玉", "future"], ["猪肉", "猪", "future"], ["鳕鱼", "鳕", "future"]],
+    age: "13—18 月龄", title: "练习更多口感", note: "根据实际能力继续展开，不预设进度", state: "future",
+    foods: [
+      { id: "avocado", name: "牛油果", fallback: "果", state: "future" },
+    ],
   },
   {
-    age: "19—24 月龄", title: "建立自己的食物世界", note: "回看偏好，也继续保持多样", state: "future",
-    foods: [["花生酱", "花", "future"], ["芝麻酱", "芝", "future"], ["毛豆", "毛", "future"], ["奶酪", "酪", "future"]],
+    age: "19—24 月龄", title: "建立自己的食物世界", note: "新食物素材完成后再加入，不重复冒充", state: "future",
+    foods: [],
   },
 ] as const;
+
+const pathSides = ["left", "right", "right", "left"] as const;
+
+function foodConnectorPath(from: "left" | "right", to: "left" | "right") {
+  const startX = from === "left" ? 102 : 218;
+  const endX = to === "left" ? 102 : 218;
+  const controlX = from === to ? (from === "left" ? 166 : 154) : 160;
+  return `M ${startX} 43 C ${controlX} 58, ${controlX} 142, ${endX} 158`;
+}
 
 function PlanSetupPage() {
   const navigate = useNavigate();
@@ -629,20 +660,22 @@ function WeeklyPlanPage() {
 function FoodMapPage() {
   const navigate = useNavigate();
   return <Screen className="food-map-screen collapsible-title-screen"><TopBar title="宝宝食物地图" back="/home" />
-    <section className="food-map-hero journey-hero"><div><span>满满 · 10 个月</span><h1>食物成长路线</h1><p>已经认识 13 种食物，现在走到第 3 站。</p></div><Map size={30} /></section>
-    <div className="journey-summary"><span><strong>13</strong><small>已记录</small></span><i /><span><strong>3 / 6</strong><small>当前站</small></span><i /><span><strong>鲜虾</strong><small>下一种</small></span></div>
+    <section className="food-map-hero journey-hero"><div><span>满满 · 10 个月</span><h1>食物成长路线</h1><p>已经认识 13 种食物，现在走到第 3 站。</p></div><CharacterIllustration intent="explore" size="card" /></section>
+    <div className="journey-summary"><span><strong>13</strong><small>已记录</small></span><i /><span><strong>3 / 6</strong><small>当前站</small></span><i /><span><strong>三文鱼</strong><small>下一种</small></span></div>
     <section className="food-journey" aria-label="满满的食物成长路线">
       {foodJourneyStages.map((stage) => <article key={stage.age} className={cx("journey-stage", stage.state)}>
         <header><span>{stage.state === "completed" ? <Check size={14} /> : stage.state === "current" ? <Sparkles size={14} /> : <LockKeyhole size={13} />}</span><div><small>{stage.age}</small><h2>{stage.title}</h2><p>{stage.note}</p></div>{stage.state === "current" && <b>当前</b>}</header>
         <div className="food-path-track">
-          {stage.foods.map(([name, icon, state], foodIndex) => {
-            const side = ["left", "right", "right", "left"][foodIndex];
-            const interactive = name === "鲜虾";
-            return <div key={name} className={cx("food-path-row", side)}>
-              <button className={cx("food-path-node", state)} disabled={state === "future" && !interactive} onClick={() => interactive && navigate("/food-map/shrimp")} aria-label={`${name}，${state === "recorded" ? "已有记录" : state === "planned" ? "下一种计划尝试" : "尚未探索"}`}>
-                <span className="food-character-slot" data-food-image={name}><small>{icon}</small>{state === "recorded" && <i><Check size={11} /></i>}{state === "future" && <i><LockKeyhole size={10} /></i>}</span>
-                <strong>{name}</strong>
-                <small>{state === "recorded" ? "已点亮" : state === "planned" ? "下一种" : "待探索"}</small>
+          {stage.foods.map((food, foodIndex) => {
+            const side = pathSides[foodIndex % pathSides.length];
+            const nextSide = pathSides[(foodIndex + 1) % pathSides.length];
+            const interactive = food.state === "planned";
+            return <div key={food.id} className={cx("food-path-row", side)}>
+              {foodIndex < stage.foods.length - 1 && <svg className="food-path-connector" viewBox="0 0 320 168" preserveAspectRatio="none" aria-hidden="true"><path d={foodConnectorPath(side, nextSide)} /></svg>}
+              <button className={cx("food-path-node", food.state)} disabled={food.state === "future"} onClick={() => interactive && navigate(`/food-map/${food.id}`)} aria-label={`${food.name}，${food.state === "recorded" ? "已有记录" : food.state === "planned" ? "下一种计划尝试" : "尚未探索"}`}>
+                <span className="food-character-slot" data-food-image={food.id}><FoodIllustration foodId={food.id as FoodId} alt={food.name} fallback={<small>{food.fallback}</small>} />{food.state === "recorded" && <i><Check size={11} /></i>}{food.state === "future" && <i><LockKeyhole size={10} /></i>}</span>
+                <strong>{food.name}</strong>
+                <small>{food.state === "recorded" ? "已点亮" : food.state === "planned" ? "下一种" : "待探索"}</small>
               </button>
             </div>;
           })}
@@ -657,10 +690,10 @@ function FoodDetailPage() {
   const navigate = useNavigate();
   const [added, setAdded] = useState(false);
   return <Screen className="food-detail-screen collapsible-title-screen"><TopBar title="食材详情" back="/food-map" />
-    <section className="food-detail-hero"><span>虾</span><div><small>计划尝试</small><h1>鲜虾</h1><p>本周方案里唯一的新主食材</p></div></section>
-    <section className="food-detail-card"><header><span>为什么现在安排</span><ShieldCheck size={18} /></header><p>当前方案的其他主要食材都有记录，因此这顿更容易看清宝宝对鲜虾的实际接受情况。</p></section>
+    <section className="food-detail-hero"><FoodIllustration foodId="salmon" alt="三文鱼" /><div><small>计划尝试</small><h1>三文鱼</h1><p>路线中的下一位食物朋友</p></div></section>
+    <section className="food-detail-card"><header><span>为什么现在安排</span><ShieldCheck size={18} /></header><p>当前路线里的 13 种食物已有记录，这次只新增三文鱼，更容易看清实际接受情况。</p></section>
     <section className="explore-plan"><div className="week-heading"><div><span>记录事实，不替代判断</span><h2>分 3 次完成一次探索</h2></div></div>{[["01", "准备并制作", "选择宝宝版本，记录实际使用的食材。"], ["02", "记录吃了多少", "完成后记录接受程度和即时情况。"], ["03", "稍后补充观察", "回到记录页补充后续情况；如有异常先停止尝试并寻求专业帮助。"]].map(([id, title, detail]) => <article key={id}><span>{id}</span><div><strong>{title}</strong><p>{detail}</p></div></article>)}</section>
-    <button className="related-recipe" onClick={() => navigate("/result/adapted")}><span><UtensilsCrossed size={19} /></span><div><small>本周相关菜谱</small><strong>宝宝虾滑面</strong><p>已按 10 月龄软颗粒调整</p></div><ChevronRight size={18} /></button>
+    <div className="related-recipe"><span><UtensilsCrossed size={19} /></span><div><small>加入后再生成宝宝版本</small><strong>三文鱼南瓜软饭</strong><p>实际用量和质地仍需结合本次记录</p></div></div>
     <div className="food-detail-actions"><Button full onClick={() => setAdded(true)}>{added ? "已加入本周计划" : "加入本周计划"}</Button><button onClick={() => navigate("/food-map")}>暂不尝试</button></div>
   </Screen>;
 }
@@ -694,7 +727,7 @@ function AnalysisPage() {
     <Screen className="analysis-screen">
       <TopBar title="正在整理视频" back="/home" />
       <section className="analysis-visual">
-        <div className="analysis-orbit"><div className="analysis-center"><BowlVisual /></div><i /><i /><i /></div>
+        <div className="analysis-orbit"><div className="analysis-center"><CharacterIllustration intent={progress.stage === "reading" ? "link" : progress.stage === "checking" ? "question" : "inspect"} size="hero" /></div><i /><i /><i /></div>
         <h1>宝宝虾滑面</h1>
         <AnimatePresence mode="wait" initial={false}><motion.p key={progress.label} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: .16 }}>{progress.label}</motion.p></AnimatePresence>
         <div className="analysis-progress"><span style={{ width: `${progress.percent}%` }} /></div>
@@ -741,7 +774,7 @@ function RecipeResultPage() {
     <Screen className="result-screen result-architecture-screen">
       <TopBar title="适配结果" back="/home" />
       <section className="result-recipe-hero">
-        <div className="result-recipe-mark"><BowlVisual /></div>
+        <div className="result-recipe-mark"><CharacterIllustration intent={resolveResultIntent(scenario)} size="support" /></div>
         <div><span>{tomatoRiceAnalysis.source}</span><h1>{tomatoRiceAnalysis.title}</h1><p>约 {tomatoRiceAnalysis.timing.total} · 1 份</p></div>
       </section>
       {showStructuredResult ? (
@@ -1128,7 +1161,7 @@ function LegacyTomatoRiceCookSessionPage() {
     <div className="conversation-timeline" aria-live="polite">
       <AssistantMessage><p>我们按乐乐版来做。我每次只给你当前行动；原视频里没有确认的食材和调味，不会自动加入。</p></AssistantMessage>
       {!finished ? <>
-        <AssistantMessage><article className="conversation-step"><div className="conversation-step-head"><span>{phase.time}</span></div><h2>{phase.title}</h2><p>{phase.action}</p><div className="inline-check"><strong>做到什么算完成？</strong><span>{phase.check}</span></div>{stepIndex === 0 && <div className="parallel-prep-note"><ListChecks size={15} /><span>这四项可以并行准备，不需要等前一项完成再开始下一项。</span></div>}{stepIndex === 2 && <CookingTimer duration={3600} endAt={timerEndAt} setEndAt={setTimerEndAt} />}{stepIndex === 3 && <div className="inline-tip"><Bell size={15} /><span>这一步应该在焖煮剩余约 20 分钟时执行。</span></div>}</article></AssistantMessage>
+        <AssistantMessage intent={resolveCookingIntent(phase.actionKind)}><article className="conversation-step"><div className="conversation-step-head"><span>{phase.time}</span></div><h2>{phase.title}</h2><p>{phase.action}</p><div className="inline-check"><strong>做到什么算完成？</strong><span>{phase.check}</span></div>{stepIndex === 0 && <div className="parallel-prep-note"><ListChecks size={15} /><span>这四项可以并行准备，不需要等前一项完成再开始下一项。</span></div>}{stepIndex === 2 && <CookingTimer duration={3600} endAt={timerEndAt} setEndAt={setTimerEndAt} />}{stepIndex === 3 && <div className="inline-tip"><Bell size={15} /><span>这一步应该在焖煮剩余约 20 分钟时执行。</span></div>}</article></AssistantMessage>
       </> : <AssistantMessage><div className="tomato-cook-complete"><CheckCircle2 size={28} /><h2>这份软饭完成了</h2><p>喂之前再确认：米粒能压开、肉末没有结团、青菜没有粗梗或长纤维，温度适宜。</p></div></AssistantMessage>}
     </div>
     <div className="session-dock tomato-session-dock">
@@ -1213,9 +1246,9 @@ function TomatoRiceConversationPage() {
       <AssistantMessage><p>我们按乐乐版来做。接下来每次只说当前行动；你可以直接打字或用语音问我。</p></AssistantMessage>
       {completed.map((number) => {
         const done = tomatoRiceAnalysis.phases[number];
-        return <div className="conversation-pair completed" key={number}><AssistantMessage><article className="conversation-step completed"><div className="conversation-step-head"><span>{done.time}</span><CheckCircle2 size={16} /></div><h2>{done.title}</h2></article></AssistantMessage><UserMessage>已经达到这个状态</UserMessage></div>;
+        return <div className="conversation-pair completed" key={number}><AssistantMessage intent="confirm"><article className="conversation-step completed"><div className="conversation-step-head"><span>{done.time}</span><CheckCircle2 size={16} /></div><h2>{done.title}</h2></article></AssistantMessage><UserMessage>已经达到这个状态</UserMessage></div>;
       })}
-      <AssistantMessage><article className="conversation-step"><div className="conversation-step-head"><span>当前行动 {stepIndex + 1} · {phase.time}</span></div><h2>{phase.title}</h2><p>{phase.action}</p><div className="inline-check"><strong>做到什么算完成？</strong><span>{phase.check}</span></div>{stepIndex === 0 && <div className="parallel-prep-note"><ListChecks size={15} /><span>这四项可以同时准备，不需要等前一项完成。</span></div>}{stepIndex === 2 && <CookingTimer duration={3600} endAt={timerEndAt} setEndAt={setTimerEndAt} />}{stepIndex === 3 && <div className="inline-tip"><Bell size={15} /><span>焖煮剩余约 20 分钟时执行这一步。</span></div>}</article></AssistantMessage>
+      <AssistantMessage intent={resolveCookingIntent(phase.actionKind)}><article className="conversation-step"><div className="conversation-step-head"><span>当前行动 {stepIndex + 1} · {phase.time}</span></div><h2>{phase.title}</h2><p>{phase.action}</p><div className="inline-check"><strong>做到什么算完成？</strong><span>{phase.check}</span></div>{stepIndex === 0 && <div className="parallel-prep-note"><ListChecks size={15} /><span>这四项可以同时准备，不需要等前一项完成。</span></div>}{stepIndex === 2 && <CookingTimer duration={3600} endAt={timerEndAt} setEndAt={setTimerEndAt} />}{stepIndex === 3 && <div className="inline-tip"><Bell size={15} /><span>焖煮剩余约 20 分钟时执行这一步。</span></div>}</article></AssistantMessage>
       {messages.filter((message) => message.step === stepIndex && !message.id.endsWith("-done")).map((message) => message.role === "user" ? <UserMessage key={message.id}>{message.text}</UserMessage> : <AssistantMessage key={message.id}><p>{message.text}</p></AssistantMessage>)}
     </div>
     <div className="session-dock tomato-conversation-dock">
@@ -1269,7 +1302,10 @@ function ShrimpCookSessionPage() {
     timelineRef.current?.scrollTo({ top: timelineRef.current.scrollHeight, behavior: "smooth" });
   }, [cookPrepared, cookConversation.length, stepNumber, thinking, riskInterrupted]);
   useEffect(() => {
-    if (voiceMode && cookPrepared && !riskInterrupted) speak(`${step.title}。${step.instruction}。完成状态：${step.check}`);
+    if (!voiceMode || riskInterrupted) return;
+    speak(cookPrepared
+      ? `${step.title}。${step.instruction}。完成状态：${step.check}`
+      : "开始前，我们先确认食材是否齐全。你可以直接说出缺少的食材。");
     // Voice output follows the active cooking action only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stepNumber, voiceMode, cookPrepared, riskInterrupted]);
@@ -1333,11 +1369,9 @@ function ShrimpCookSessionPage() {
       const nav = navigator as Navigator & { wakeLock?: { request: (type: "screen") => Promise<unknown> } };
       if (nav.wakeLock) await nav.wakeLock.request("screen");
     } catch { /* Voice mode remains available without Wake Lock. */ }
-    speak(cookPrepared ? `${step.title}。${step.instruction}` : "开始前，我们先确认食材是否齐全。你可以直接说出缺少的食材。 ");
   };
   const confirmPrepared = () => {
     setCookPrepared(true);
-    if (voiceMode) speak(`食材确认完成。第一步，${shrimpNoodleRecipe.steps[0].title}。${shrimpNoodleRecipe.steps[0].instruction}`);
   };
   const finishCurrentAction = () => {
     completeStep(stepNumber);
@@ -1391,8 +1425,8 @@ function ShrimpCookSessionPage() {
   </Screen>;
 }
 
-function AssistantMessage({ children, tone }: { children: ReactNode; tone?: "risk" }) {
-  return <div className={cx("conversation-row assistant-row", tone === "risk" && "risk")}><span className="assistant-marker"><UtensilsCrossed size={17} /></span><div className="conversation-bubble assistant-bubble">{children}</div></div>;
+function AssistantMessage({ children, tone, intent = "welcome" }: { children: ReactNode; tone?: "risk"; intent?: CharacterIntent }) {
+  return <div className={cx("conversation-row assistant-row", tone === "risk" && "risk")}><span className="assistant-marker">{tone === "risk" ? <ShieldAlert size={17} /> : <CharacterIllustration intent={intent} size="avatar" animate={false} />}</span><div className="conversation-bubble assistant-bubble">{children}</div></div>;
 }
 
 function UserMessage({ children }: { children: ReactNode }) {
@@ -1400,7 +1434,7 @@ function UserMessage({ children }: { children: ReactNode }) {
 }
 
 function StepMessage({ step, number, completed, children }: { step: CookingStep; number: number; completed?: boolean; children?: ReactNode }) {
-  return <AssistantMessage><article className={cx("conversation-step", completed && "completed")}><div className="conversation-step-head"><span>当前行动 {number}</span>{completed && <CheckCircle2 size={16} />}</div><h2>{step.title}</h2><p>{step.instruction}</p>{!completed && <><div className="inline-check"><strong>做到什么算完成？</strong><span>{step.check}</span></div>{number === 1 && <div className="size-reference"><span>切碎参考</span><div><i /><i /><i /></div><small>尽量细碎、大小均匀，更容易充分煮软</small></div>}{step.tip && <div className="inline-tip"><Sparkles size={15} /><span>{step.tip}</span></div>}{children}</>}</article></AssistantMessage>;
+  return <AssistantMessage intent={completed ? "confirm" : resolveCookingIntent(step.actionKind)}><article className={cx("conversation-step", completed && "completed")}><div className="conversation-step-head"><span>当前行动 {number}</span>{completed && <CheckCircle2 size={16} />}</div><h2>{step.title}</h2><p>{step.instruction}</p>{!completed && <><div className="inline-check"><strong>做到什么算完成？</strong><span>{step.check}</span></div>{number === 1 && <div className="size-reference"><span>切碎参考</span><div><i /><i /><i /></div><small>尽量细碎、大小均匀，更容易充分煮软</small></div>}{step.tip && <div className="inline-tip"><Sparkles size={15} /><span>{step.tip}</span></div>}{children}</>}</article></AssistantMessage>;
 }
 
 function CookingTimer({ duration, endAt, setEndAt }: { duration: number; endAt: number | null; setEndAt: (value: number | null) => void }) {
@@ -1419,7 +1453,7 @@ function CookingTimer({ duration, endAt, setEndAt }: { duration: number; endAt: 
 
 function CompletePage() {
   const navigate = useNavigate();
-  return <Screen className="complete-screen"><TopBar title="制作完成" back="/cook/shrimp-noodle-demo/session" /><div className="complete-visual"><div className="complete-ring"><BowlVisual /><motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: .25, type: "spring" }}><Check /></motion.span></div></div><h1>宝宝虾滑面做好了</h1><p>开始喂之前，再花 10 秒检查一次。</p><section className="final-checks"><div><span>01</span><p><strong>质地</strong><small>面条和虾滑都能用勺背压开</small></p></div><div><span>02</span><p><strong>大小</strong><small>面条已剪短，虾滑已分成小块</small></p></div><div><span>03</span><p><strong>温度与坐姿</strong><small>温度适宜，宝宝保持坐直</small></p></div></section><div className="screen-actions"><Button full onClick={() => navigate("/feedback/shrimp-noodle-demo/now")}>记录宝宝吃得怎么样</Button><Button full variant="ghost" onClick={() => navigate("/home")}>稍后再记录</Button></div></Screen>;
+  return <Screen className="complete-screen"><TopBar title="制作完成" back="/cook/shrimp-noodle-demo/session" /><div className="complete-visual"><div className="complete-ring"><CharacterIllustration intent="serve" size="hero" /><motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: .25, type: "spring" }}><Check /></motion.span></div></div><h1>宝宝虾滑面做好了</h1><p>开始喂之前，再花 10 秒检查一次。</p><section className="final-checks"><div><span>01</span><p><strong>质地</strong><small>面条和虾滑都能用勺背压开</small></p></div><div><span>02</span><p><strong>大小</strong><small>面条已剪短，虾滑已分成小块</small></p></div><div><span>03</span><p><strong>温度与坐姿</strong><small>温度适宜，宝宝保持坐直</small></p></div></section><div className="screen-actions"><Button full onClick={() => navigate("/feedback/shrimp-noodle-demo/now")}>记录宝宝吃得怎么样</Button><Button full variant="ghost" onClick={() => navigate("/home")}>稍后再记录</Button></div></Screen>;
 }
 
 const feedbackGroups = [
@@ -1449,7 +1483,7 @@ function FeedbackPage() {
   };
   const noteSuggestions = isTomatoRecipe ? ["米饭可以再软些", "肉末可以再细些", "宝宝愿意再吃"] : ["面条可以再软些", "虾滑可以再小些", "宝宝愿意再吃"];
   return <Screen className="post-meal-feedback-screen"><TopBar title="用餐反馈" back={isTomatoRecipe ? "/home" : "/cook/shrimp-noodle-demo/complete"} />
-    <section className="feedback-meal-hero"><div className="feedback-bowl"><BowlVisual /></div><div><span>{recipeTitle}</span><h1>{babyName}吃得怎么样？</h1><p>约 1 分钟完成，帮助下次更贴近宝宝。</p></div></section>
+    <section className="feedback-meal-hero"><div className="feedback-bowl"><CharacterIllustration intent={feedback.swallowing === "unusual" ? "paused" : "plan"} size="support" /></div><div><span>{recipeTitle}</span><h1>{babyName}吃得怎么样？</h1><p>约 1 分钟完成，帮助下次更贴近宝宝。</p></div></section>
     <div className="feedback-completion"><span><i style={{ width: `${(completedCount / 3) * 100}%` }} /></span><strong>{completedCount} / 3 已选</strong></div>
     <div className="feedback-form-sections">
       {feedbackGroups.map((group) => {
@@ -1490,7 +1524,6 @@ function HistoryPage() {
           {visible.length ? visible.map((item) => <button key={item.id} className="history-card" onClick={() => navigate(`/history/${item.id}`)}><span className="date-dot" /><div><small>{item.date}</small><strong>{item.recipeTitle}</strong><span className={cx("status-chip", item.conclusion === "direct" ? "green" : "soft")}>{suitabilityCopy[item.conclusion].label}</span><p>{item.progress === "completed" ? "已记录进食反馈" : "已保存，尚未制作"}</p></div><ChevronRight size={19} /></button>) : <EmptyState title="这里还没有记录" description="分析并保存一条视频后，会出现在这里。" action="去分析视频" onAction={() => navigate("/home")} />}
         </motion.section>
       </AnimatePresence>
-      <BottomNav />
     </Screen>
   );
 }
@@ -1511,7 +1544,7 @@ function feedbackLabel(value?: string) {
 function BabyPage() {
   const navigate = useNavigate();
   const profile = useAppStore((state) => state.profile);
-  return <Screen className="baby-screen has-bottom-nav"><TopBar title="宝宝档案" action={<IconButton label="设置" onClick={() => navigate("/settings")}><Settings size={20} /></IconButton>} /><section className="baby-hero"><div className="large-avatar">满</div><div><span className="eyebrow">当前宝宝</span><h1>{profile.name}</h1><p>{profile.months} 个月 · {stageLabels[profile.stage]}</p></div><IconButton label="编辑档案" onClick={() => navigate("/baby/edit")}><Edit3 size={18} /></IconButton></section><section className="profile-summary"><div><span><Baby size={19} /></span><p><small>月龄</small><strong>{profile.months} 个月</strong></p></div><div><span><UtensilsCrossed size={19} /></span><p><small>进食阶段</small><strong>{stageLabels[profile.stage]}</strong></p></div><div><span><ShieldCheck size={19} /></span><p><small>明确回避</small><strong>{profile.avoidFoods.length ? profile.avoidFoods.join("、") : "暂无"}</strong></p></div></section><section className="baby-section"><div className="section-heading"><div><span className="eyebrow">食材尝试</span><h2>让适配更有依据</h2></div><button onClick={() => navigate("/baby/foods")}>全部食材</button></div><div className="food-status-grid"><div><span className="food-icon">蛋</span><strong>鸡蛋</strong><small className="green-text">已尝试</small></div><div><span className="food-icon">虾</span><strong>鲜虾</strong><small className="orange-text">待观察</small></div><div><span className="food-icon">胡</span><strong>胡萝卜</strong><small className="green-text">已尝试</small></div><div><span className="food-icon">西</span><strong>西蓝花</strong><small className="green-text">已尝试</small></div></div></section><section className="baby-section"><button className="profile-link" onClick={() => navigate("/history")}><span><History size={18} /><span><strong>制作与反馈记录</strong><small>3 条本机记录</small></span></span><ChevronRight size={18} /></button><button className="profile-link" onClick={() => navigate("/settings")}><span><LockKeyhole size={18} /><span><strong>数据与隐私</strong><small>只保存在当前浏览器</small></span></span><ChevronRight size={18} /></button></section><BottomNav /></Screen>;
+  return <Screen className="baby-screen has-bottom-nav"><TopBar title="宝宝档案" action={<IconButton label="设置" onClick={() => navigate("/settings")}><Settings size={20} /></IconButton>} /><section className="baby-hero"><div className="large-avatar"><CharacterIllustration intent="link" size="support" animate={false} /></div><div><span className="eyebrow">当前宝宝</span><h1>{profile.name}</h1><p>{profile.months} 个月 · {stageLabels[profile.stage]}</p></div><IconButton label="编辑档案" onClick={() => navigate("/baby/edit")}><Edit3 size={18} /></IconButton></section><section className="profile-summary"><div><span><Baby size={19} /></span><p><small>月龄</small><strong>{profile.months} 个月</strong></p></div><div><span><UtensilsCrossed size={19} /></span><p><small>进食阶段</small><strong>{stageLabels[profile.stage]}</strong></p></div><div><span><ShieldCheck size={19} /></span><p><small>明确回避</small><strong>{profile.avoidFoods.length ? profile.avoidFoods.join("、") : "暂无"}</strong></p></div></section><section className="baby-section"><div className="section-heading"><div><span className="eyebrow">食材尝试</span><h2>让适配更有依据</h2></div><button onClick={() => navigate("/baby/foods")}>全部食材</button></div><div className="food-status-grid"><div><span className="food-icon">蛋</span><strong>鸡蛋</strong><small className="green-text">已尝试</small></div><div><span className="food-icon">虾</span><strong>鲜虾</strong><small className="orange-text">待观察</small></div><div><span className="food-icon">胡</span><strong>胡萝卜</strong><small className="green-text">已尝试</small></div><div><span className="food-icon">西</span><strong>西蓝花</strong><small className="green-text">已尝试</small></div></div></section><section className="baby-section"><button className="profile-link" onClick={() => navigate("/history")}><span><History size={18} /><span><strong>制作与反馈记录</strong><small>3 条本机记录</small></span></span><ChevronRight size={18} /></button><button className="profile-link" onClick={() => navigate("/settings")}><span><LockKeyhole size={18} /><span><strong>数据与隐私</strong><small>只保存在当前浏览器</small></span></span><ChevronRight size={18} /></button></section></Screen>;
 }
 
 function FoodsPage() {
@@ -1549,13 +1582,13 @@ type RouteMotion = { direction: number; mode: "stack" | "tab" | "none" };
 
 const routeVariants = {
   enter: ({ direction, mode }: RouteMotion) => ({
-    x: mode === "none" ? 0 : mode === "tab" ? `${direction * 18}%` : direction < 0 ? "-24%" : "100%",
-    opacity: mode === "none" ? 1 : .98,
+    x: mode === "none" || mode === "tab" ? 0 : direction < 0 ? "-24%" : "100%",
+    opacity: mode === "none" ? 1 : mode === "tab" ? .98 : 1,
   }),
   center: { x: 0, opacity: 1 },
   exit: ({ direction, mode }: RouteMotion) => ({
-    x: mode === "none" ? 0 : mode === "tab" ? `${direction * -18}%` : direction < 0 ? "100%" : "-24%",
-    opacity: mode === "none" ? 1 : .96,
+    x: mode === "none" || mode === "tab" ? 0 : direction < 0 ? "100%" : "-24%",
+    opacity: mode === "none" ? 1 : mode === "tab" ? .98 : .96,
   }),
 };
 
@@ -1576,6 +1609,7 @@ function AppRoutes() {
   const routeMotion: RouteMotion = reduceMotion || direction === 0
     ? { direction: 0, mode: "none" }
     : { direction, mode: transitionState?.transition === "tab" ? "tab" : "stack" };
+  const showBottomNav = ["/home", "/history", "/baby"].includes(location.pathname);
 
   return (
     <AppFrame>
@@ -1589,7 +1623,7 @@ function AppRoutes() {
             initial="enter"
             animate="center"
             exit="exit"
-            transition={{ duration: reduceMotion ? 0 : .28, ease: [.22, 1, .36, 1] }}
+            transition={{ duration: reduceMotion ? 0 : routeMotion.mode === "tab" ? .12 : .28, ease: [.22, 1, .36, 1] }}
           >
             <Routes location={location}>
               <Route path="/" element={<StartRoute />} />
@@ -1621,6 +1655,7 @@ function AppRoutes() {
             </Routes>
           </motion.div>
         </AnimatePresence>
+        {showBottomNav && <BottomNav />}
       </div>
     </AppFrame>
   );

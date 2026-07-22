@@ -51,6 +51,7 @@ export interface CookingStep {
   check: string;
   duration?: number;
   tip?: string;
+  actionKind?: "prepare" | "mix" | "heat" | "timer" | "add" | "check_texture" | "cool" | "serve" | "generic";
 }
 
 export interface Recipe {

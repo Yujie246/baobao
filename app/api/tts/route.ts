@@ -1,4 +1,4 @@
-const TENCENT_VOICE_TYPE = 502007;
+const TENCENT_VOICE_TYPE = 603002;
 const MAX_TEXT_LENGTH = 150;
 const TENCENT_HOST = "tts.tencentcloudapi.com";
 const TENCENT_SERVICE = "tts";

@@ -16,7 +16,7 @@ describe("宝宝音色服务", () => {
     vi.unstubAllGlobals();
   });
 
-  it("密钥只在服务端使用，并生成智小虎聊天童声", async () => {
+  it("密钥只在服务端使用，并生成软萌心心男童声", async () => {
     process.env.TENCENTCLOUD_SECRET_ID = "test-id";
     process.env.TENCENTCLOUD_SECRET_KEY = "test-key";
     const tencentFetch = vi.fn().mockResolvedValue(Response.json({
@@ -38,7 +38,7 @@ describe("宝宝音色服务", () => {
     expect(new Headers(init.headers).get("Authorization")).toContain("Credential=test-id/");
     expect(JSON.parse(String(init.body))).toMatchObject({
       Text: "先把胡萝卜切成小块煮软",
-      VoiceType: 502007,
+      VoiceType: 603002,
       SampleRate: 24000,
       Codec: "mp3",
     });
