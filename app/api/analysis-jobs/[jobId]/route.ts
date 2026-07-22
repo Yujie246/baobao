@@ -4,7 +4,7 @@ import { staleAnalysisMessage } from "../../../analysis/job-runtime";
 import { loadJob, saveJob, updateJob } from "../../../analysis/server/storage";
 
 export const runtime = "nodejs";
-export const maxDuration = 800;
+export const maxDuration = 300;
 
 async function runInBackground(task: Promise<void>) {
   if (process.env.VERCEL) {

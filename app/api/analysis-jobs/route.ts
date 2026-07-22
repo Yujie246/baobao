@@ -11,7 +11,7 @@ import path from "node:path";
 import { resolveSubmittedVideo } from "../../analysis/server/tikhub";
 
 export const runtime = "nodejs";
-export const maxDuration = 800;
+export const maxDuration = 300;
 const MAX_VIDEO_BYTES = 200 * 1024 * 1024;
 
 async function runInBackground(task: Promise<void>) {
