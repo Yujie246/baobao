@@ -656,8 +656,8 @@ function HomePage() {
       </section>
       <section className="home-inspiration-section">
         <div className="home-section-heading"><div><h2>今日辅食灵感</h2></div><button type="button" aria-label="换一组辅食灵感" onClick={() => setIdeaOffset((current) => (current + 1) % homeInspirationIdeas.length)}><RefreshCw key={ideaOffset} size={14} />换一组</button></div>
-        <div className="home-inspiration-track">
-          {inspirationIdeas.map((idea) => <article className="home-idea-card" key={idea.id}><div className="home-idea-visual"><FoodIllustration foodId={idea.foodId} alt="" /><span>{idea.time}</span></div><h3>{idea.title}</h3><p>{idea.note}</p><button aria-label={`开始制作${idea.title}`} onClick={() => navigate(`/cook/${idea.id}/session`)}><Play size={12} />开始制作</button></article>)}
+        <div className="home-inspiration-track" role="region" aria-label="辅食灵感，可左右滑动" tabIndex={0}>
+          {inspirationIdeas.map((idea) => <article className="home-idea-card" key={idea.id}><span className="home-idea-time">{idea.time}</span><h3>{idea.title}</h3><p>{idea.note}</p><button aria-label={`开始制作${idea.title}`} onClick={() => navigate(`/cook/${idea.id}/session`)}><Play size={12} />开始制作</button></article>)}
         </div>
       </section>
       <section className="home-dashboard-grid" aria-label="计划与探索">
