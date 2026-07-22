@@ -486,6 +486,14 @@ function OnboardingStage() {
   );
 }
 
+// FRONTEND PLACEHOLDER DATA: 推荐服务接入前，只用于验证首页信息架构；不作为食物安全结论。
+const homeInspirationIdeas = [
+  { id: "pumpkin-rice", title: "南瓜鸡肉软饭", time: "约 15 分钟", foodId: "pumpkin" as FoodId, note: "软烂处理，匹配当前质地" },
+  { id: "broccoli-egg", title: "西兰花蒸蛋", time: "约 12 分钟", foodId: "broccoli" as FoodId, note: "熟悉食材，做法简单" },
+  { id: "carrot-tofu", title: "胡萝卜豆腐软饭", time: "约 18 分钟", foodId: "carrot" as FoodId, note: "容易压软，方便调整颗粒" },
+  { id: "banana-oat", title: "香蕉燕麦软饼", time: "约 10 分钟", foodId: "banana" as FoodId, note: "加餐灵感，质地仍需确认" },
+] as const;
+
 function HomePage() {
   const navigate = useNavigate();
   const profile = useAppStore((state) => state.profile);
@@ -497,6 +505,7 @@ function HomePage() {
   const cookConversation = useAppStore((state) => state.cookConversation);
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
+  const [ideaOffset, setIdeaOffset] = useState(0);
   const pasteLink = async () => {
     try {
       const value = await navigator.clipboard.readText();
@@ -520,6 +529,14 @@ function HomePage() {
   };
   const hasCookingSession = cookPrepared || completedSteps.length > 0 || cookConversation.length > 0 || riskInterrupted;
   const pendingObservation = history.find((item) => item.progress === "completed" && item.feedback && !item.feedback.observed);
+  const completedMeals = history.filter((item) => item.progress === "completed").length;
+  const observedMeals = history.filter((item) => item.feedback?.observed).length;
+  const inspirationIdeas = Array.from({ length: 3 }, (_, index) => homeInspirationIdeas[(ideaOffset + index) % homeInspirationIdeas.length]);
+  const hasNextTask = hasCookingSession || Boolean(pendingObservation);
+  const openNextTask = () => {
+    if (hasCookingSession) return navigate("/cook/shrimp-noodle-demo/session");
+    if (pendingObservation) navigate(`/feedback/${pendingObservation.id}/later`);
+  };
   return (
     <Screen className="home-screen has-bottom-nav">
       <div className="home-hero">
@@ -528,34 +545,32 @@ function HomePage() {
           <button className="baby-avatar" onClick={() => navigate("/baby")} aria-label="查看宝宝档案"><CharacterIllustration intent="link" size="avatar" animate={false} /></button>
         </header>
         <div className="profile-pill"><Baby size={15} /><span>{profile.name} · {profile.months} 个月 · {stageLabels[profile.stage]}</span><ChevronRight size={15} /></div>
-        <form className="paste-card" onSubmit={submit}>
-          <div className="home-primary-head"><div className="paste-icon"><Link2 size={21} /></div><h2>粘贴辅食视频</h2></div>
+        {hasNextTask && <button className={cx("home-next-task", riskInterrupted && "risk")} onClick={openNextTask}>
+          <CharacterIllustration intent={riskInterrupted ? "paused" : hasCookingSession ? "prepare" : "plan"} size="avatar" animate={false} />
+          <span className="home-next-task-copy"><small>{riskInterrupted ? "需要先确认" : hasCookingSession ? "继续制作" : "今天需要观察"}</small><strong>{hasCookingSession ? "宝宝虾滑面" : pendingObservation?.recipeTitle}</strong><em>{riskInterrupted ? "陪做已暂停，请先查看风险提示" : hasCookingSession ? `当前第 ${cookStep} / 5 步 · 还剩 ${Math.max(5 - completedSteps.length, 1)} 个动作` : "完成后可补充后续观察"}</em>{hasCookingSession && pendingObservation && <b>另有 1 项待观察</b>}</span>
+          <ChevronRight size={18} />
+        </button>}
+        <form className="paste-card home-import-card" onSubmit={submit}>
+          <div className="home-primary-head"><div className="paste-icon"><Link2 size={21} /></div><div><h2>导入辅食内容</h2><p>当前支持视频链接</p></div><span>链接分析</span></div>
           <label htmlFor="video-url" className="sr-only">视频链接</label>
-          <div className={cx("url-field", error && "invalid")}><input id="video-url" value={url} placeholder="粘贴视频链接" onChange={(e) => { setUrl(e.target.value); setError(""); }} /><button type="button" onClick={pasteLink}>粘贴</button></div>
+          <div className={cx("url-field", error && "invalid")}><input id="video-url" value={url} placeholder="粘贴辅食视频链接" onChange={(e) => { setUrl(e.target.value); setError(""); }} /><button type="button" onClick={pasteLink}>粘贴</button></div>
           {error && <p className="field-error"><AlertCircle size={14} />{error}</p>}
-          <Button full type="submit" icon={<Sparkles size={17} />}>分析视频</Button>
+          <Button full type="submit" icon={<Sparkles size={17} />}>开始分析</Button>
+          <button className="home-example-link" type="button" onClick={() => { setUrl(demoLink); setError(""); }}><Play size={12} />没有链接？试试宝宝虾滑面示例</button>
         </form>
       </div>
-      <section className="home-feature-section">
-        <button className="home-feature-card plan" onClick={() => navigate("/plan")}>
-          <span className="home-feature-icon"><CalendarDays size={21} /></span>
-          <span className="home-feature-copy"><strong>安排辅食</strong><em>今天 · 7 天 · 4 周</em></span>
-        </button>
-        <button className="home-feature-card food-map" onClick={() => navigate("/food-map")}>
-          <span className="home-feature-icon"><Map size={21} /></span>
-          <span className="home-feature-copy"><strong>食物地图</strong><em>已记录 13 种</em></span>
-        </button>
-        {hasCookingSession && <button className="home-resume-card" onClick={() => navigate("/cook/shrimp-noodle-demo/session")}>
-          <span><Play size={14} fill="currentColor" /></span>
-          <div><small>{riskInterrupted ? "陪做已暂停" : `做到第 ${cookStep} 步`}</small><strong>继续宝宝虾滑面</strong></div>
-          <ChevronRight size={18} />
-        </button>}
-        {!hasCookingSession && pendingObservation && <button className="home-resume-card observation" onClick={() => navigate(`/feedback/${pendingObservation.id}/later`)}>
-          <span><Clock3 size={15} /></span>
-          <div><small>稍后补充即可</small><strong>记录「{pendingObservation.recipeTitle}」的后续观察</strong></div>
-          <ChevronRight size={18} />
-        </button>}
+      <section className="home-inspiration-section">
+        <div className="home-section-heading"><div><span>灵感示例</span><h2>今日辅食灵感</h2><p>加入前仍需结合档案和实际食材记录确认</p></div><button onClick={() => setIdeaOffset((current) => (current + 1) % homeInspirationIdeas.length)}>换一换</button></div>
+        <div className="home-inspiration-track">
+          {inspirationIdeas.map((idea) => <article className="home-idea-card" key={idea.id}><div className="home-idea-visual"><FoodIllustration foodId={idea.foodId} alt="" /></div><span>{idea.time}</span><h3>{idea.title}</h3><p>{idea.note}</p><button onClick={() => navigate("/plan")}>去安排<ChevronRight size={13} /></button></article>)}
+        </div>
       </section>
+      <section className="home-dashboard-grid" aria-label="计划与探索">
+        <button className="home-dashboard-card plan" onClick={() => navigate("/plan/week")}><span className="home-dashboard-icon"><CalendarDays size={19} /></span><small>本周辅食计划</small><strong>已安排 {weeklyMeals.length} 天</strong><p>今天：南瓜鸡肉软饭</p><em>查看计划 <ChevronRight size={12} /></em></button>
+        <button className="home-dashboard-card food-map" onClick={() => navigate("/food-map")}><span className="home-dashboard-icon"><Map size={19} /></span><small>食物探索地图</small><strong>已记录 {profile.triedFoods.length} 种</strong><p>继续积累真实尝试</p><em>继续探索 <ChevronRight size={12} /></em></button>
+      </section>
+      <section className="home-progress-section"><div className="home-section-heading"><div><span>成长记录</span><h2>{profile.name}最近的小进步</h2></div></div><div className="home-progress-track"><div><span><UtensilsCrossed size={16} /></span><strong>{completedMeals}</strong><small>完成制作</small></div><i /><div><span><ShoppingBasket size={16} /></span><strong>{profile.triedFoods.length}</strong><small>已记录食材</small></div><i /><div><span><CheckCircle2 size={16} /></span><strong>{observedMeals}</strong><small>完成观察</small></div></div>{completedMeals === 0 && <p className="home-progress-empty">还没有制作记录，从第一顿开始积累吧。</p>}</section>
+      {!hasNextTask && <section className="home-calm-note"><CharacterIllustration intent="neutral" size="avatar" animate={false} /><div><strong>今天没有待处理任务</strong><p>小鸡仔可以休息一下，或者从一条辅食内容开始。</p></div></section>}
     </Screen>
   );
 }

@@ -62,6 +62,14 @@ test("实现包含完整页面闭环和统一 Mock 边界", async () => {
   assert.match(app, /开启柔和语音/);
   assert.match(app, /安排辅食/);
   assert.match(app, /食物地图/);
+  assert.match(app, /导入辅食内容/);
+  assert.match(app, /今日辅食灵感/);
+  assert.match(app, /className=\{cx\("home-next-task"/);
+  assert.match(app, /className="home-dashboard-grid"/);
+  assert.match(app, /最近的小进步/);
+  assert.match(app, /已记录 \{profile\.triedFoods\.length\} 种/);
+  assert.match(app, /当前支持视频链接/);
+  assert.doesNotMatch(app, /home-upload-video|home-upload-gallery/);
   assert.match(app, /foodJourneyStages/);
   assert.match(app, /food-character-slot/);
   assert.equal((app.match(/<CharacterIllustration intent="link"/g) ?? []).length, 2);
