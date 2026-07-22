@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { normalizeAnalysisEvidence, parseAnalysisResult, parseVideoFacts, stripCodeFence, timestampToSeconds } from "../app/analysis/json";
+import { normalizeAnalysisEvidence, normalizeUnifiedAnalysisEvidence, parseAnalysisResult, parseUnifiedAnalysisOutput, parseVideoFacts, stripCodeFence, timestampToSeconds } from "../app/analysis/json";
 import { stabilizeConclusionCard } from "../app/analysis/conclusion-card";
+import { analysisResultFromUnified, getUnifiedAnalysisPlan } from "../app/analysis/unified";
 
 const validFacts = {
   video_title: "南瓜软饭",
@@ -123,5 +124,32 @@ describe("analysis JSON boundary", () => {
     expect(normalized.视频解析.required_abilities[0].evidence_ids).toEqual(["E-TEX-01"]);
     expect(normalized.陪做步骤[0].mapping_note).toBe("对应原视频中的这一步");
     expect(normalized.陪做步骤[1].mapping_note).toBe("宝宝版新增步骤");
+  });
+
+  it("parses one unified plan and attaches original facts server-side", () => {
+    const facts = parseVideoFacts(JSON.stringify(validFacts));
+    const evidence = [
+      ["E-ING-01", "食材"], ["E-SEA-01", "调味"], ["E-COOK-01", "熟制"], ["E-TEX-01", "质地"], ["E-SIZE-01", "大小形状"], ["E-FEED-01", "喂养方式"],
+    ].map(([evidence_id, dimension]) => ({ evidence_id, dimension, source: "测试指南", location: "测试章节", summary: "测试规则摘要", relationship: "用于测试结构化引用" })) as Parameters<typeof analysisResultFromUnified>[3];
+    const evidenceIndex = new Map(evidence.map((item) => [item.evidence_id, item.dimension] as const));
+    const definitions = [
+      ["ingredients_allergy", "食材与过敏", "E-ING-01"], ["new_food", "新食材引入", "E-ING-01"], ["seasoning", "调味", "E-SEA-01"], ["cooking", "熟制", "E-COOK-01"], ["texture", "质地", "E-TEX-01"], ["size_shape", "大小形状", "E-SIZE-01"], ["eating_ability", "进食能力", "E-TEX-01"], ["feeding", "喂养方式", "E-FEED-01"],
+    ] as const;
+    const output = {
+      适配方案: {
+        verdict: { title: "满满版南瓜软饭", status: "调整后可以做", headline: "压得再细一点就可以尝试", summary: "原视频的南瓜和软饭可以保留，把明显硬块压散后再少量尝试。", profile_summary: "满满 · 10个月 · 软颗粒" },
+        source_summary: { title: "南瓜软饭", summary: "把熟南瓜压散后拌入软饭。", recipe_profile: { food_type: "主食", dominant_texture: "软饭", particle_composition: "南瓜泥", food_form: "软饭", feeding_method: "未说明", feeding_posture: "未说明", final_portion: "未说明" } },
+        checks: definitions.map(([check_id, dimension, id], index) => ({ check_id, dimension, impact: index === 4 ? "change" : "none", source_fact: "原视频展示了南瓜软饭", baby_context: "宝宝可以吃软颗粒", decision: index === 4 ? "把硬块压散" : "可以保留", action: index === 4 ? "用勺背压到没有明显硬块" : "按宝宝版步骤继续", evidence_ids: [id] })),
+        ingredients: [{ name: "南瓜", source: { amount: null, preparation: "压散", observation: "画面可见" }, baby: { amount: "参考一餐少量", preparation: "压到没有明显硬块" }, decision: "调整", evidence_ids: ["E-ING-01"] }],
+        steps: [{ step_id: "S01", source_action_id: "A01", title: "压南瓜", start_time: "00:00:01.000", end_time: "00:00:08.000", keyframe_time: "00:00:05.000", keyframe_description: "勺背正在压南瓜", image_url: null, timing: null, action: "压散", instruction: "压散南瓜", completion_check: "没有明显硬块", personal_reminder: "现场确认质地", mapping_note: "对应原视频中的这一步", quick_actions: [], common_questions: [] }],
+        serving_checks: ["喂前确认温度和实际质地。"],
+      },
+    };
+    const plan = parseUnifiedAnalysisOutput(normalizeUnifiedAnalysisEvidence(JSON.stringify(output), evidenceIndex), facts, evidenceIndex);
+    const result = analysisResultFromUnified(plan, facts, { name: "满满", months: 10, correctedMonths: null, premature: false, stage: "软颗粒", avoidFoods: [], triedFoods: ["南瓜"], feedingSignals: [], note: "" }, evidence);
+    expect(result.视频解析.facts).toEqual(facts);
+    expect(result.统一方案?.checks).toHaveLength(8);
+    expect(result.陪做步骤).toEqual(result.统一方案?.steps);
+    expect(getUnifiedAnalysisPlan(result).ingredients[0].source.preparation).toBe("压散");
   });
 });

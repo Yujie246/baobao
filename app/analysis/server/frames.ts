@@ -25,5 +25,9 @@ export async function extractFrames(jobId: string, video: VideoSource, result: A
       return { ...step, image_url };
     } catch { return step; }
   }));
-  return { ...result, 陪做步骤: steps };
+  return {
+    ...result,
+    陪做步骤: steps,
+    ...(result.统一方案 ? { 统一方案: { ...result.统一方案, steps } } : {}),
+  };
 }

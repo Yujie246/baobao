@@ -93,6 +93,18 @@ export interface CookConversationMessage {
   step: number;
 }
 
+export type FoodJourneyStatus = "active" | "paused" | "completed";
+export type FoodJourneyReaction = "possible" | "urgent";
+
+export interface FoodJourneyProgress {
+  foodId: string;
+  status: FoodJourneyStatus;
+  completedCheckpoints: number[];
+  startedAt: number;
+  completedAt?: number;
+  reaction?: FoodJourneyReaction;
+}
+
 export interface PersistedAppState {
   profile: BabyProfile;
   history: HistoryRecord[];
@@ -109,4 +121,5 @@ export interface PersistedAppState {
     extraCookMinutes: number;
   };
   riskInterrupted: boolean;
+  foodJourneyProgress: Record<string, FoodJourneyProgress>;
 }

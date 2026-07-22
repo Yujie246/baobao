@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { completedProfile, defaultProfile, initialHistory } from "./mock-data";
 import type { BabyProfile, CookConversationMessage, Feedback, PersistedAppState, Suitability } from "./types";
+import { foodJourneyFoods } from "./food-journey";
 
 interface AppStore extends PersistedAppState {
   hydrated: boolean;
@@ -24,6 +25,9 @@ interface AppStore extends PersistedAppState {
   saveObservation: (recipeId: string, observed: NonNullable<Feedback["observed"]>) => void;
   resetDemo: () => void;
   loadDemo: () => void;
+  startFoodJourney: (foodId: string) => void;
+  recordFoodCheckpoint: (foodId: string, checkpoint: number) => boolean;
+  pauseFoodJourney: (foodId: string, reaction: "possible" | "urgent") => void;
 }
 
 const baseState: PersistedAppState = {
@@ -39,7 +43,17 @@ const baseState: PersistedAppState = {
   serving: 1,
   recipeAdjustments: { broccoli: "keep", extraCookMinutes: 0 },
   riskInterrupted: false,
+  foodJourneyProgress: {},
 };
+
+function firstIncompleteFoodId(state: PersistedAppState) {
+  return foodJourneyFoods.find((food) => state.foodJourneyProgress[food.id]?.status !== "completed")?.id;
+}
+
+function removeLegacyMockFoods(foods: string[], hasJourneyProgress: boolean) {
+  const legacy = ["鸡蛋", "面粉", "胡萝卜", "西蓝花"];
+  return !hasJourneyProgress && foods.length === legacy.length && legacy.every((food) => foods.includes(food)) ? [] : foods;
+}
 
 export const useAppStore = create<AppStore>()(
     (set) => ({
@@ -61,9 +75,11 @@ export const useAppStore = create<AppStore>()(
               feedingNote: state.profile.feedingNote ?? "",
               avoidStatus: state.profile.avoidStatus
                 ?? (state.profile.avoidFoods.length > 0 ? "has" : state.profile.completed ? "none" : null),
+              triedFoods: removeLegacyMockFoods(state.profile.triedFoods ?? [], Boolean(state.foodJourneyProgress && Object.keys(state.foodJourneyProgress).length)),
             }
           : baseState.profile,
         hydrated: true,
+        foodJourneyProgress: state?.foodJourneyProgress ?? {},
       }),
       setProfile: (profile) => set((state) => ({ profile: { ...state.profile, ...profile } })),
       finishOnboarding: () => set((state) => ({ profile: { ...state.profile, completed: true } })),
@@ -74,6 +90,7 @@ export const useAppStore = create<AppStore>()(
           triedFoods: [],
           feedingSignals: [],
         },
+        foodJourneyProgress: {},
       }),
       setCookStep: (cookStep) => set({ cookStep }),
       setCookPrepared: (cookPrepared) => set({ cookPrepared }),
@@ -127,6 +144,50 @@ export const useAppStore = create<AppStore>()(
           ? { ...item, feedback: { ...item.feedback, observed } }
           : item),
       })),
+      startFoodJourney: (foodId) => set((state) => {
+        if (firstIncompleteFoodId(state) !== foodId || state.foodJourneyProgress[foodId]) return state;
+        return {
+          foodJourneyProgress: {
+            ...state.foodJourneyProgress,
+            [foodId]: { foodId, status: "active", completedCheckpoints: [], startedAt: Date.now() },
+          },
+        };
+      }),
+      recordFoodCheckpoint: (foodId, checkpoint) => {
+        let completed = false;
+        set((state) => {
+          const current = state.foodJourneyProgress[foodId];
+          if (!current || current.status !== "active" || checkpoint !== current.completedCheckpoints.length + 1 || checkpoint > 3) return state;
+          const completedCheckpoints = [...current.completedCheckpoints, checkpoint];
+          completed = completedCheckpoints.length === 3;
+          const foodName = foodJourneyFoods.find((food) => food.id === foodId)?.name;
+          return {
+            foodJourneyProgress: {
+              ...state.foodJourneyProgress,
+              [foodId]: {
+                ...current,
+                completedCheckpoints,
+                status: completed ? "completed" : "active",
+                ...(completed ? { completedAt: Date.now() } : {}),
+              },
+            },
+            profile: completed && foodName && !state.profile.triedFoods.includes(foodName)
+              ? { ...state.profile, triedFoods: [...state.profile.triedFoods, foodName] }
+              : state.profile,
+          };
+        });
+        return completed;
+      },
+      pauseFoodJourney: (foodId, reaction) => set((state) => {
+        const current = state.foodJourneyProgress[foodId];
+        if (!current || current.status === "completed") return state;
+        return {
+          foodJourneyProgress: {
+            ...state.foodJourneyProgress,
+            [foodId]: { ...current, status: "paused", reaction },
+          },
+        };
+      }),
       resetDemo: () => set({ ...baseState, hydrated: true }),
       loadDemo: () => set({ ...baseState, profile: completedProfile, hydrated: true }),
     }),
@@ -146,5 +207,6 @@ export function selectPersistedState(state: AppStore): PersistedAppState {
     serving: state.serving,
     recipeAdjustments: state.recipeAdjustments,
     riskInterrupted: state.riskInterrupted,
+    foodJourneyProgress: state.foodJourneyProgress,
   };
 }

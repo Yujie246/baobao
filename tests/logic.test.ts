@@ -1,8 +1,25 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createAiGateway } from "../app/ai-gateway";
+import { cookingStepTimerSeconds } from "../app/analysis/timing";
 import { POST as synthesizeSpeech } from "../app/api/tts/route";
 import { completedProfile, shrimpNoodleRecipe, suitabilityCopy } from "../app/mock-data";
 import { useAppStore } from "../app/store";
+import { childVoiceTts } from "../app/tts-gateway";
+import { foodJourneyFoods } from "../app/food-journey";
+
+describe("陪做步骤计时判断", () => {
+  const step = { title: "焖煮软饭", action: "焖煮", instruction: "盖盖焖煮到软烂", timing: "约 15-20 分钟", timer_seconds: null };
+
+  it("对需要等待的步骤使用保守时间上限", () => {
+    expect(cookingStepTimerSeconds(step)).toBe(20 * 60);
+    expect(cookingStepTimerSeconds({ ...step, title: "少油慢煎", action: "煎", timing: "每面 2-3 分钟" })).toBe(3 * 60);
+  });
+
+  it("即时处理不显示计时器，并优先使用模型给出的结构化时长", () => {
+    expect(cookingStepTimerSeconds({ ...step, title: "切碎苹果", action: "切碎", instruction: "切成小碎末", timing: "即时" })).toBeNull();
+    expect(cookingStepTimerSeconds({ ...step, timer_seconds: 600 })).toBe(600);
+  });
+});
 
 describe("宝宝音色服务", () => {
   const originalSecretId = process.env.TENCENTCLOUD_SECRET_ID;
@@ -58,6 +75,33 @@ describe("宝宝音色服务", () => {
 
     expect(response.status).toBe(503);
     expect(tencentFetch).not.toHaveBeenCalled();
+  });
+
+  it("腾讯云音频不可用时改用设备中文语音", async () => {
+    const speak = vi.fn();
+    const cancel = vi.fn();
+    vi.stubGlobal("window", {
+      setTimeout,
+      clearTimeout,
+      speechSynthesis: {
+        getVoices: () => [{ name: "Ting-Ting", lang: "zh-CN", localService: true }],
+        speak,
+        cancel,
+      },
+    });
+    vi.stubGlobal("SpeechSynthesisUtterance", class {
+      lang = "";
+      voice: unknown = null;
+      rate = 1;
+      pitch = 1;
+      constructor(public text: string) {}
+    });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ error: "宝宝音色尚未配置" }, { status: 503 })));
+
+    await expect(childVoiceTts.speak("先把胡萝卜切细")).resolves.toBe("system");
+    expect(speak).toHaveBeenCalledOnce();
+    expect(speak.mock.calls[0][0]).toMatchObject({ text: "先把胡萝卜切细", lang: "zh-CN" });
+    childVoiceTts.cancel();
   });
 });
 
@@ -161,6 +205,7 @@ describe("宝宝档案状态", () => {
       serving: current.serving,
       recipeAdjustments: current.recipeAdjustments,
       riskInterrupted: current.riskInterrupted,
+      foodJourneyProgress: current.foodJourneyProgress,
     });
     const migrated = useAppStore.getState().profile;
     expect(migrated.ageConfirmed).toBe(true);
@@ -177,5 +222,45 @@ describe("宝宝档案状态", () => {
     expect(state.profile).toMatchObject({ months: 0, completed: false, ageConfirmed: false, avoidStatus: null });
     expect(state.profile.triedFoods).toEqual([]);
     expect(state.history).toEqual(historyBefore);
+  });
+});
+
+describe("食物成长路线", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("首次进入没有预先点亮的食物", () => {
+    useAppStore.getState().resetDemo();
+    expect(useAppStore.getState().foodJourneyProgress).toEqual({});
+    expect(useAppStore.getState().profile.triedFoods).toEqual([]);
+  });
+
+  it("只能按顺序解锁，并允许连续演示完整流程", () => {
+    useAppStore.getState().resetDemo();
+    const first = foodJourneyFoods[0];
+    const second = foodJourneyFoods[1];
+
+    useAppStore.getState().startFoodJourney(second.id);
+    expect(useAppStore.getState().foodJourneyProgress[second.id]).toBeUndefined();
+
+    useAppStore.getState().startFoodJourney(first.id);
+    expect(useAppStore.getState().recordFoodCheckpoint(first.id, 1)).toBe(false);
+    expect(useAppStore.getState().foodJourneyProgress[first.id].completedCheckpoints).toEqual([1]);
+    expect(useAppStore.getState().recordFoodCheckpoint(first.id, 2)).toBe(false);
+    expect(useAppStore.getState().foodJourneyProgress[first.id].completedCheckpoints).toEqual([1, 2]);
+    expect(useAppStore.getState().recordFoodCheckpoint(first.id, 3)).toBe(true);
+    expect(useAppStore.getState().foodJourneyProgress[first.id].status).toBe("completed");
+    expect(useAppStore.getState().profile.triedFoods).toContain(first.name);
+
+    useAppStore.getState().startFoodJourney(second.id);
+    expect(useAppStore.getState().foodJourneyProgress[second.id]?.status).toBe("active");
+  });
+
+  it("记录可疑反应后立即暂停，不解锁下一关", () => {
+    useAppStore.getState().resetDemo();
+    const first = foodJourneyFoods[0];
+    useAppStore.getState().startFoodJourney(first.id);
+    useAppStore.getState().pauseFoodJourney(first.id, "possible");
+    expect(useAppStore.getState().foodJourneyProgress[first.id]).toMatchObject({ status: "paused", reaction: "possible" });
+    expect(useAppStore.getState().profile.triedFoods).not.toContain(first.name);
   });
 });

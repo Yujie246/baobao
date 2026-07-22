@@ -41,6 +41,7 @@ export async function loadLocalState(): Promise<PersistedAppState | null> {
     serving: record.serving,
     recipeAdjustments: record.recipeAdjustments ?? { broccoli: "keep", extraCookMinutes: 0 },
     riskInterrupted: record.riskInterrupted ?? false,
+    foodJourneyProgress: record.foodJourneyProgress ?? {},
   };
 }
 

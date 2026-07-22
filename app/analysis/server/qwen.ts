@@ -2,9 +2,9 @@ import "server-only";
 import OpenAI from "openai";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { normalizeAnalysisEvidence, parseAnalysisResult, parseVideoFacts } from "../json";
-import { stabilizeConclusionCard } from "../conclusion-card";
+import { normalizeUnifiedAnalysisEvidence, parseUnifiedAnalysisOutput, parseVideoFacts } from "../json";
 import type { AnalysisBabyProfile, AnalysisResult, KnowledgeRule, VideoFactPackage } from "../schemas";
+import { analysisResultFromUnified } from "../unified";
 import type { VideoSource } from "./storage";
 import { readVideo } from "./storage";
 
@@ -80,15 +80,13 @@ export async function personalizeWithQwen(facts: VideoFactPackage, profile: Anal
   const raw = await complete([{ role: "user", content: request }], { timeoutMs: PLAN_TIMEOUT_MS, stage: "plan" });
   const evidenceIndex = new Map(evidence.map((item) => [item.evidence_id, item.dimension] as const));
   try {
-    const parsed = parseAnalysisResult(normalizeAnalysisEvidence(raw, evidenceIndex), facts, evidenceIndex);
-    const groundedCard = stabilizeConclusionCard(parsed.宝宝版本, [facts, profile, evidence]);
-    return { ...parsed, 宝宝版本: { ...parsed.宝宝版本, conclusion_card: groundedCard }, 视频解析: { ...parsed.视频解析, evidence } };
+    const plan = parseUnifiedAnalysisOutput(normalizeUnifiedAnalysisEvidence(raw, evidenceIndex), facts, evidenceIndex);
+    return analysisResultFromUnified(plan, facts, profile, evidence);
   } catch (error) {
     try {
-      const repaired = await complete([{ role: "user", content: `下面是一份辅食分析 JSON。只修复校验错误和缺失字段，其他内容保持不变；不得改写视频事实、action_id 和时间戳。只输出完整合法 JSON。\n允许的 evidence_ids：${evidence.map((item) => item.evidence_id).join("、")}\n校验错误：${String(error)}\n原结果：${raw}` }], { timeoutMs: REPAIR_TIMEOUT_MS, stage: "repair" });
-      const parsed = parseAnalysisResult(normalizeAnalysisEvidence(repaired, evidenceIndex), facts, evidenceIndex);
-      const groundedCard = stabilizeConclusionCard(parsed.宝宝版本, [facts, profile, evidence]);
-      return { ...parsed, 宝宝版本: { ...parsed.宝宝版本, conclusion_card: groundedCard }, 视频解析: { ...parsed.视频解析, evidence } };
+      const repaired = await complete([{ role: "user", content: `下面是一份统一辅食适配方案 JSON。只修复校验错误和缺失字段，其他内容保持不变；顶层只能是“适配方案”，不得添加或回传输入 facts；不得改写 action_id 和时间戳。只输出完整合法 JSON。\n允许的 evidence_ids：${evidence.map((item) => item.evidence_id).join("、")}\n校验错误：${String(error)}\n原结果：${raw}` }], { timeoutMs: REPAIR_TIMEOUT_MS, stage: "repair" });
+      const plan = parseUnifiedAnalysisOutput(normalizeUnifiedAnalysisEvidence(repaired, evidenceIndex), facts, evidenceIndex);
+      return analysisResultFromUnified(plan, facts, profile, evidence);
     } catch (repairError) {
       const repairMessage = repairError instanceof Error ? repairError.message : "模型结果修复失败";
       const validationMessage = error instanceof Error ? error.message : String(error);

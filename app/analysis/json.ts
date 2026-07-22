@@ -1,4 +1,4 @@
-import { analysisResultSchema, videoFactPackageSchema, type AnalysisResult, type KnowledgeRule, type VideoFactPackage } from "./schemas";
+import { analysisResultSchema, unifiedAnalysisOutputSchema, videoFactPackageSchema, type AnalysisResult, type KnowledgeRule, type UnifiedAnalysisPlan, type VideoFactPackage } from "./schemas";
 
 export function stripCodeFence(value: string) {
   return value.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
@@ -89,6 +89,44 @@ export function normalizeAnalysisEvidence(raw: string, evidenceIndex: Map<string
   return JSON.stringify(value);
 }
 
+const unifiedEvidenceDimensions: Record<UnifiedAnalysisPlan["checks"][number]["check_id"], KnowledgeRule["dimension"][]> = {
+  ingredients_allergy: ["食材"],
+  new_food: ["食材"],
+  seasoning: ["调味"],
+  cooking: ["熟制"],
+  texture: ["质地"],
+  size_shape: ["大小形状"],
+  eating_ability: ["质地", "大小形状", "喂养方式"],
+  feeding: ["喂养方式"],
+};
+
+export function normalizeUnifiedAnalysisEvidence(raw: string, evidenceIndex: Map<string, KnowledgeRule["dimension"]>) {
+  const value = JSON.parse(stripCodeFence(raw));
+  const root = record(value);
+  const plan = record(root?.["适配方案"]);
+  if (!plan) return raw;
+  const idsFor = (dimensions: KnowledgeRule["dimension"][]) => [...evidenceIndex].filter(([, dimension]) => dimensions.includes(dimension)).map(([id]) => id);
+  const normalize = (item: unknown, dimensions: KnowledgeRule["dimension"][]) => {
+    const target = record(item);
+    if (!target) return;
+    const allowed = new Set(idsFor(dimensions));
+    const ids = Array.isArray(target.evidence_ids) ? target.evidence_ids.filter((id): id is string => typeof id === "string" && allowed.has(id)) : [];
+    target.evidence_ids = (ids.length ? ids : [...allowed]).slice(0, 2);
+  };
+  if (Array.isArray(plan.checks)) plan.checks.forEach((item) => {
+    const target = record(item);
+    const id = target?.check_id as UnifiedAnalysisPlan["checks"][number]["check_id"] | undefined;
+    normalize(item, id && unifiedEvidenceDimensions[id] ? unifiedEvidenceDimensions[id] : ["食材"]);
+  });
+  if (Array.isArray(plan.ingredients)) plan.ingredients.forEach((item) => normalize(item, ["食材"]));
+  if (Array.isArray(plan.steps)) plan.steps.forEach((item) => {
+    const step = record(item);
+    if (!step || typeof step.mapping_note === "string" && step.mapping_note.trim()) return;
+    step.mapping_note = step.source_action_id ? "对应原视频中的这一步" : "宝宝版新增步骤";
+  });
+  return JSON.stringify(value);
+}
+
 export function parseVideoFacts(raw: string): VideoFactPackage {
   const parsed = videoFactPackageSchema.parse(deepNormalize(JSON.parse(stripCodeFence(raw))));
   if (parsed.duration_seconds != null) {
@@ -102,21 +140,38 @@ export function parseVideoFacts(raw: string): VideoFactPackage {
   return parsed;
 }
 
-export function parseAnalysisResult(raw: string, facts: VideoFactPackage, evidenceIndex?: Set<string> | Map<string, KnowledgeRule["dimension"]>): AnalysisResult {
-  const parsed = analysisResultSchema.parse(deepNormalize(JSON.parse(stripCodeFence(raw))));
-  if (stableJson(parsed.视频解析.facts) !== stableJson(facts)) throw new Error("视频解析.facts 改写了原视频事实包");
+function validateSteps(steps: UnifiedAnalysisPlan["steps"], facts: VideoFactPackage) {
   const actionMap = new Map(facts.actions.map((action) => [action.action_id, action]));
-  for (const step of parsed.陪做步骤) {
+  for (const step of steps) {
     if (!step.source_action_id) {
       if (step.start_time || step.end_time || step.keyframe_time) throw new Error(`${step.step_id} 为新增步骤，时间戳必须为 null`);
       continue;
     }
     const source = actionMap.get(step.source_action_id);
     if (!source) throw new Error(`${step.step_id} 引用了不存在的 action_id`);
-    if (step.start_time !== source.start_time || step.end_time !== source.end_time || step.keyframe_time !== source.keyframe_time) {
-      throw new Error(`${step.step_id} 改写了原视频时间戳`);
-    }
+    if (step.start_time !== source.start_time || step.end_time !== source.end_time || step.keyframe_time !== source.keyframe_time) throw new Error(`${step.step_id} 改写了原视频时间戳`);
   }
+}
+
+export function parseUnifiedAnalysisOutput(raw: string, facts: VideoFactPackage, evidenceIndex: Map<string, KnowledgeRule["dimension"]>): UnifiedAnalysisPlan {
+  const plan = unifiedAnalysisOutputSchema.parse(deepNormalize(JSON.parse(stripCodeFence(raw)))).适配方案;
+  validateSteps(plan.steps, facts);
+  for (const check of plan.checks) {
+    const allowedDimensions = unifiedEvidenceDimensions[check.check_id];
+    const mismatched = check.evidence_ids.filter((id) => !allowedDimensions.includes(evidenceIndex.get(id)!));
+    if (mismatched.length) throw new Error(`${check.dimension}引用了无关或不存在的证据：${mismatched.join("、")}`);
+  }
+  for (const ingredient of plan.ingredients) {
+    const mismatched = ingredient.evidence_ids.filter((id) => evidenceIndex.get(id) !== "食材");
+    if (mismatched.length) throw new Error(`食材“${ingredient.name}”引用了无关或不存在的证据：${mismatched.join("、")}`);
+  }
+  return plan;
+}
+
+export function parseAnalysisResult(raw: string, facts: VideoFactPackage, evidenceIndex?: Set<string> | Map<string, KnowledgeRule["dimension"]>): AnalysisResult {
+  const parsed = analysisResultSchema.parse(deepNormalize(JSON.parse(stripCodeFence(raw))));
+  if (stableJson(parsed.视频解析.facts) !== stableJson(facts)) throw new Error("视频解析.facts 改写了原视频事实包");
+  validateSteps(parsed.陪做步骤, facts);
   if (evidenceIndex) {
     const allowedEvidenceIds = evidenceIndex instanceof Set ? evidenceIndex : new Set(evidenceIndex.keys());
     const references = [

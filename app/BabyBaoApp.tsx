@@ -3,6 +3,7 @@
 import {
   AlertCircle,
   ArrowLeft,
+  Award,
   Baby,
   Bell,
   BookmarkCheck,
@@ -45,6 +46,7 @@ import {
   WifiOff,
   X,
 } from "lucide-react";
+import confetti from "canvas-confetti";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   createContext,
@@ -54,6 +56,7 @@ import {
   lazy,
   ReactNode,
   Suspense,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -75,10 +78,21 @@ import {
 import { createAiGateway, type AnalysisProgress } from "./ai-gateway";
 import { streamBabyAgent } from "./agent/client";
 import { createAnalysisJob, createUrlAnalysisJob, getAnalysisJob, getAnalysisResult, retryAnalysisJob } from "./analysis/client";
-import { stabilizeConclusionCard } from "./analysis/conclusion-card";
 import type { AnalysisJobStatus, AnalysisResult } from "./analysis/schemas";
+import { cookingStepTimerSeconds } from "./analysis/timing";
+import { getUnifiedAnalysisPlan } from "./analysis/unified";
 import { CharacterIllustration, resolveCookingIntent, resolveResultIntent, type CharacterIntent } from "./character-illustrations";
 import { FoodIllustration, type FoodId } from "./food-illustrations";
+import { FoodMapScenery } from "./food-map-scenery";
+import {
+  foodJourneyFoods,
+  foodJourneyStages,
+  foodObservationCheckpoints,
+  getFoodJourneyFood,
+  possibleAllergySigns,
+  urgentAllergySigns,
+  type FoodJourneyFood,
+} from "./food-journey";
 import { ProfileIllustration, resolveAgeProfileAsset, resolveAvoidProfileAsset, resolveTextureProfileAsset } from "./profile-illustrations";
 import { validateImportFiles } from "./import-validation";
 import { loadLocalState, saveLocalState } from "./local-db";
@@ -89,7 +103,7 @@ import {
   tomatoRiceAnalysis,
 } from "./mock-data";
 import { selectPersistedState, useAppStore } from "./store";
-import { childVoiceTts } from "./tts-gateway";
+import { childVoiceTts, type VoiceEngine } from "./tts-gateway";
 import type { CookingStep, FeedingSignal, FeedingStage, Feedback, Ingredient, Suitability } from "./types";
 
 const stageLabels = {
@@ -127,28 +141,12 @@ function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
-const judgmentLabels: Record<string, string> = {
-  质地匹配度: "软硬粗细是否合适",
-  复合食材安全性: "多种食材一起吃是否合适",
-  新食材引入原则: "新食材怎么尝试",
-  基础进食能力: "宝宝现在能不能处理",
-  过敏风险排查: "是否需要留意过敏",
-};
-
-const dimensionLabels: Record<string, string> = {
-  食材: "食材搭配",
-  调味: "调味",
-  熟制: "是否熟透",
-  质地: "软硬粗细",
-  大小形状: "大小和形状",
-  喂养方式: "怎么喂",
-};
-
 function parentFriendly(value: string) {
   return value
     .replace(/thick-puree/gi, "稠泥糊")
     .replace(/fine-puree/gi, "细泥糊")
     .replace(/soft-particles?/gi, "软颗粒")
+    .replace(/soft[-_ ]lumps?/gi, "软颗粒")
     .replace(/stage\s*(?:为|是|：|:)?/gi, "当前进食阶段为")
     .replace(/triedFoods/gi, "已尝试食材记录")
     .replace(/avoidFoods/gi, "需要避开的食材记录")
@@ -166,6 +164,57 @@ function parentFriendly(value: string) {
     .replace(/E-[A-Z]+-\d+/g, "相关辅食依据")
     .replace(/WS\/T\s*\d+[—-]\d+/g, "婴幼儿辅食指导")
     .replace(/中国婴幼儿喂养指南（2022）/g, "婴幼儿喂养建议");
+}
+
+function useCookingVoice(announcement: string, paused = false) {
+  const [voiceMode, setVoiceMode] = useState(false);
+  const [voiceEngine, setVoiceEngine] = useState<VoiceEngine | null>(null);
+  const [voiceError, setVoiceError] = useState("");
+  const speak = useCallback(async (text: string) => {
+    const engine = await childVoiceTts.speak(text);
+    setVoiceEngine(engine);
+    if (engine === "unavailable") {
+      setVoiceMode(false);
+      setVoiceError("当前设备无法播放语音，可继续使用文字陪做。");
+    } else {
+      setVoiceError("");
+    }
+    return engine;
+  }, []);
+  useEffect(() => {
+    if (!voiceMode || paused) return;
+    const timeout = window.setTimeout(() => void speak(announcement), 0);
+    return () => window.clearTimeout(timeout);
+  }, [announcement, paused, speak, voiceMode]);
+  useEffect(() => () => childVoiceTts.cancel(), []);
+  const toggleVoice = async () => {
+    if (voiceMode) {
+      setVoiceMode(false);
+      setVoiceEngine(null);
+      setVoiceError("");
+      childVoiceTts.cancel();
+      return;
+    }
+    setVoiceMode(true);
+    setVoiceError("");
+    try {
+      const nav = navigator as Navigator & { wakeLock?: { request: (type: "screen") => Promise<unknown> } };
+      if (nav.wakeLock) await nav.wakeLock.request("screen");
+    } catch { /* Voice remains available when Wake Lock is unavailable. */ }
+  };
+  return {
+    voiceMode,
+    voiceEngine,
+    voiceError,
+    speak,
+    toggleVoice,
+    label: voiceMode ? voiceEngine === "system" ? "设备语音中" : "语音陪伴中" : "保持语音",
+  };
+}
+
+function VoiceStatus({ engine, error }: { engine: VoiceEngine | null; error: string }) {
+  if (!error && engine !== "system") return null;
+  return <p className={cx("session-voice-status", error && "error")} role="status">{error || "宝宝音色暂不可用，已切换为设备语音。"}</p>;
 }
 
 function Button({
@@ -590,7 +639,6 @@ function HomePage() {
   const profile = useAppStore((state) => state.profile);
   const history = useAppStore((state) => state.history);
   const cookPrepared = useAppStore((state) => state.cookPrepared);
-  const cookStep = useAppStore((state) => state.cookStep);
   const riskInterrupted = useAppStore((state) => state.riskInterrupted);
   const completedSteps = useAppStore((state) => state.completedSteps);
   const cookConversation = useAppStore((state) => state.cookConversation);
@@ -689,10 +737,6 @@ function HomePage() {
   const pendingObservation = history.find((item) => item.progress === "completed" && item.feedback && !item.feedback.observed);
   const inspirationIdeas = Array.from({ length: 3 }, (_, index) => homeInspirationIdeas[(ideaOffset + index) % homeInspirationIdeas.length]);
   const hasNextTask = hasCookingSession || Boolean(pendingObservation);
-  const openNextTask = () => {
-    if (hasCookingSession) return navigate("/cook/shrimp-noodle-demo/session");
-    if (pendingObservation) navigate(`/feedback/${pendingObservation.id}/later`);
-  };
   return (
     <Screen className="home-screen has-bottom-nav">
       <div
@@ -710,14 +754,25 @@ function HomePage() {
         <button type="button" className="baby-avatar" style={{ right: `calc(3px + ${agentPullProgress * 36}%)`, bottom: `${-7 + agentPullProgress * 43}px`, transform: `scale(${1 + agentPullProgress * .58})` }} onClick={() => navigate("/agent")} aria-label="和满满的辅食小助手对话"><Suspense fallback={<span className="home-character-motion is-fallback"><picture className="home-character-poster"><img src="/illustrations/ip/v2/home-chick-poster.png" width="256" height="256" alt="" decoding="sync" /></picture></span>}><HomeCharacterAnimation /></Suspense></button>
         <button type="button" className="profile-pill" onClick={() => navigate("/baby")} aria-label={`查看${profile.name}的宝宝档案`}><Baby size={15} /><span>{profile.name} · {profile.months} 个月 · {stageLabels[profile.stage]}</span><ChevronRight size={15} /></button>
       </div>
-      <section className="home-primary-flow" aria-label="当前任务与内容导入">
-        {hasNextTask && <button className={cx("home-next-task", riskInterrupted && "risk")} onClick={openNextTask}>
-          <CharacterIllustration intent={riskInterrupted ? "paused" : hasCookingSession ? "prepare" : "plan"} size="avatar" animate={false} />
-          <span className="home-next-task-copy"><small>{riskInterrupted ? "需要先确认" : hasCookingSession ? "继续制作" : "今天需要观察"}</small><strong>{hasCookingSession ? "宝宝虾滑面" : pendingObservation?.recipeTitle}</strong><em>{riskInterrupted ? "陪做已暂停，请先查看风险提示" : hasCookingSession ? `当前第 ${cookStep} / 5 步 · 还剩 ${Math.max(5 - completedSteps.length, 1)} 个动作` : "完成后可补充后续观察"}</em>{hasCookingSession && pendingObservation && <b>另有 1 项待观察</b>}</span>
-          <ChevronRight size={18} />
-        </button>}
+      <section className="home-dashboard-grid home-dashboard-grid-top" aria-label="计划与探索">
+        <button className="home-dashboard-card plan" onClick={() => navigate("/plan")}>
+          <span className="home-dashboard-icon"><CalendarDays size={19} /></span>
+          <small>计划参考</small>
+          <strong>看看 {weeklyMeals.length} 天搭配</strong>
+          <em>开始安排 <ChevronRight size={13} /></em>
+          <img className="home-dashboard-decoration" src="/illustrations/ip/v1/plan-160.webp" alt="" aria-hidden="true" />
+        </button>
+        <button className="home-dashboard-card food-map" onClick={() => navigate("/food-map")}>
+          <span className="home-dashboard-icon"><Map size={19} /></span>
+          <small>食物探索地图</small>
+          <strong>已记录 {profile.triedFoods.length} 种</strong>
+          <em>继续探索 <ChevronRight size={13} /></em>
+          <img className="home-dashboard-decoration" src="/illustrations/ip/v1/explore-160.webp" alt="" aria-hidden="true" />
+        </button>
+      </section>
+      <section className="home-primary-flow" aria-label="内容导入">
         <div className="home-section-heading home-import-heading"><div><h2>导入辅食视频</h2></div></div>
-        <form className={cx("paste-card home-import-card", hasNextTask && "secondary")} onSubmit={submit}>
+        <form className="paste-card home-import-card" onSubmit={submit}>
           <div className="home-import-tabs" role="tablist" aria-label="内容导入方式"><button type="button" role="tab" aria-selected={importMode === "link"} className={cx(importMode === "link" && "active")} onClick={() => { setImportMode("link"); setError(""); }}><Link2 size={15} />粘贴链接</button><button type="button" role="tab" aria-selected={importMode === "file"} className={cx(importMode === "file" && "active")} onClick={() => { setImportMode("file"); setError(""); }}><Upload size={15} />选择文件</button></div>
           <div className={cx("home-import-body", importMode === "file" && importFiles.length > 0 && "has-preview")}>
             {importMode === "link" ? <><label htmlFor="video-url" className="sr-only">视频链接</label><div className={cx("url-field", error && "invalid")}><input id="video-url" value={url} placeholder="粘贴可直接访问的视频链接" onChange={(e) => { setUrl(e.target.value); setError(""); }} /><button type="button" onClick={pasteLink}>粘贴</button></div><button className="home-example-link" type="button" onClick={() => { setUrl(demoLink); setError(""); }}><Play size={12} />没有链接？试试宝宝虾滑面示例</button></> : <div className="home-file-import"><input className="sr-only" id="home-content-files" type="file" accept=".mp4,.mov,video/mp4,video/quicktime" onChange={chooseImportFiles} />{importFiles.length === 0 ? <label className={cx("home-file-picker", error && "invalid")} htmlFor="home-content-files"><Upload size={22} /><span><strong>选择本地视频</strong><small>支持 MP4 / MOV，最大 200MB</small></span></label> : <div className="home-file-preview" aria-live="polite">{importFiles.map((file, index) => <article key={`${file.name}-${file.size}-${index}`}><div className="home-file-preview-media"><LocalVideoPreview file={file} /><button type="button" aria-label={`移除 ${file.name}`} onClick={() => setImportFiles((files) => files.filter((_, fileIndex) => fileIndex !== index))}><Trash2 size={16} /></button></div><div className="home-file-preview-info"><span><FileIcon size={17} /></span><div><strong>{file.name}</strong><small>本地视频 · {formatImportFileSize(file.size)}</small></div></div></article>)}<label htmlFor="home-content-files"><RefreshCw size={14} />重新选择</label></div>}</div>}
@@ -731,10 +786,6 @@ function HomePage() {
         <div className="home-inspiration-track" role="region" aria-label="辅食灵感，可左右滑动" tabIndex={0}>
           {inspirationIdeas.map((idea) => <article className="home-idea-card" key={idea.id}><span className="home-idea-time">{idea.time}</span><h3>{idea.title}</h3><p>{idea.note}</p><button aria-label={`开始制作${idea.title}`} onClick={() => navigate(`/cook/${idea.id}/session`)}><Play size={12} />开始制作</button></article>)}
         </div>
-      </section>
-      <section className="home-dashboard-grid" aria-label="计划与探索">
-        <button className="home-dashboard-card plan" onClick={() => navigate("/plan")}><span className="home-dashboard-icon"><CalendarDays size={19} /></span><small>计划参考</small><strong>看看 {weeklyMeals.length} 天搭配</strong><p>尚未保存为真实计划</p><em>开始安排 <ChevronRight size={12} /></em></button>
-        <button className="home-dashboard-card food-map" onClick={() => navigate("/food-map")}><span className="home-dashboard-icon"><Map size={19} /></span><small>食物探索地图</small><strong>已记录 {profile.triedFoods.length} 种</strong><p>继续积累真实尝试</p><em>继续探索 <ChevronRight size={12} /></em></button>
       </section>
       {!hasNextTask && <section className="home-calm-note"><CharacterIllustration intent="neutral" size="avatar" animate={false} /><div><strong>今天没有待处理任务</strong><p>小鸡仔可以休息一下，或者从一条辅食内容开始。</p></div></section>}
     </Screen>
@@ -827,53 +878,6 @@ const weeklyMeals = [
   { day: "周日", title: "胡萝卜鸡肉粥", note: "熟悉口味收尾 · 约 25 分钟", tone: "familiar" },
 ];
 
-const foodJourneyStages = [
-  {
-    age: "6 月龄", title: "第一次认识食物", note: "从少量、单一记录开始", state: "completed",
-    foods: [
-      { id: "millet-porridge", name: "小米粥", fallback: "粥", state: "recorded" },
-      { id: "pumpkin", name: "南瓜", fallback: "南", state: "recorded" },
-      { id: "potato", name: "土豆", fallback: "土", state: "recorded" },
-      { id: "broccoli", name: "西兰花", fallback: "西", state: "recorded" },
-    ],
-  },
-  {
-    age: "7—8 月龄", title: "慢慢丰富味道", note: "留下接受程度和质地记录", state: "completed",
-    foods: [
-      { id: "egg", name: "鸡蛋", fallback: "蛋", state: "recorded" },
-      { id: "carrot", name: "胡萝卜", fallback: "胡", state: "recorded" },
-      { id: "banana", name: "香蕉", fallback: "蕉", state: "recorded" },
-      { id: "pear", name: "梨", fallback: "梨", state: "recorded" },
-    ],
-  },
-  {
-    age: "9—10 月龄", title: "满满现在在这里", note: "软颗粒阶段 · 本站已点亮 5 / 5", state: "current",
-    foods: [
-      { id: "tofu", name: "豆腐", fallback: "豆", state: "recorded" },
-      { id: "corn", name: "玉米", fallback: "玉", state: "recorded" },
-      { id: "spinach", name: "菠菜", fallback: "菠", state: "recorded" },
-      { id: "apple", name: "苹果", fallback: "苹", state: "recorded" },
-      { id: "sweet-potato", name: "红薯", fallback: "薯", state: "recorded" },
-    ],
-  },
-  {
-    age: "11—12 月龄", title: "继续认识新朋友", note: "一次安排一种新食材并留下记录", state: "future",
-    foods: [
-      { id: "salmon", name: "三文鱼", fallback: "鱼", state: "planned" },
-    ],
-  },
-  {
-    age: "13—18 月龄", title: "练习更多口感", note: "根据实际能力继续展开，不预设进度", state: "future",
-    foods: [
-      { id: "avocado", name: "牛油果", fallback: "果", state: "future" },
-    ],
-  },
-  {
-    age: "19—24 月龄", title: "建立自己的食物世界", note: "新食物素材完成后再加入，不重复冒充", state: "future",
-    foods: [],
-  },
-] as const;
-
 const pathSides = ["left", "right", "right", "left"] as const;
 
 function foodConnectorPath(from: "left" | "right", to: "left" | "right") {
@@ -917,43 +921,101 @@ function WeeklyPlanPage() {
 
 function FoodMapPage() {
   const navigate = useNavigate();
+  const profile = useAppStore((state) => state.profile);
+  const progress = useAppStore((state) => state.foodJourneyProgress);
+  const completedCount = foodJourneyFoods.filter((food) => progress[food.id]?.status === "completed").length;
+  const currentFood = foodJourneyFoods.find((food) => progress[food.id]?.status !== "completed");
   return <Screen className="food-map-screen collapsible-title-screen"><TopBar title="宝宝食物地图" back="/home" />
-    <section className="food-map-hero journey-hero"><div><span>满满 · 10 个月</span><h1>食物成长路线</h1><p>已经认识 13 种食物，现在走到第 3 站。</p></div><CharacterIllustration intent="explore" size="card" /></section>
-    <div className="journey-summary"><span><strong>13</strong><small>已记录</small></span><i /><span><strong>3 / 6</strong><small>当前站</small></span><i /><span><strong>三文鱼</strong><small>下一种</small></span></div>
-    <section className="food-journey" aria-label="满满的食物成长路线">
-      {foodJourneyStages.map((stage) => <article key={stage.age} className={cx("journey-stage", stage.state)}>
-        <header><span>{stage.state === "completed" ? <Check size={14} /> : stage.state === "current" ? <Sparkles size={14} /> : <LockKeyhole size={13} />}</span><div><small>{stage.age}</small><h2>{stage.title}</h2><p>{stage.note}</p></div>{stage.state === "current" && <b>当前</b>}</header>
+    <section className="food-map-hero journey-hero"><div><span>{profile.name}{profile.months > 0 ? ` · ${profile.months} 个月` : ""}</span><h1>食物成长路线</h1><p>{completedCount === 0 ? "所有食物从灰色开始，完成观察后一个个点亮。" : `已收集 ${completedCount} 枚食物徽章，继续下一关。`}</p></div><CharacterIllustration intent="explore" size="card" /></section>
+    <div className="journey-summary"><span><strong>{completedCount}</strong><small>已获徽章</small></span><i /><span><strong>{completedCount} / {foodJourneyFoods.length}</strong><small>路线进度</small></span><i /><span><strong>{currentFood?.name ?? "全部完成"}</strong><small>{currentFood ? "当前关卡" : "太棒了"}</small></span></div>
+    <div className="food-journey-scene">
+      <FoodMapScenery />
+      <section className="food-journey" aria-label="满满的食物成长路线">
+        {foodJourneyStages.map((stage) => {
+          const foods = stage.foodIds.map((foodId) => getFoodJourneyFood(foodId)).filter((food): food is FoodJourneyFood => Boolean(food));
+          const stageCompleted = foods.every((food) => progress[food.id]?.status === "completed");
+          const stageCurrent = foods.some((food) => food.id === currentFood?.id);
+          const stageState = stageCompleted ? "completed" : stageCurrent ? "current" : "future";
+          const stageDone = foods.filter((food) => progress[food.id]?.status === "completed").length;
+          return <article key={stage.kicker} className={cx("journey-stage", stageState)}>
+        <header><span>{stageState === "completed" ? <Award size={14} /> : stageState === "current" ? <Sparkles size={14} /> : <LockKeyhole size={13} />}</span><div><small>{stage.kicker}</small><h2>{stage.title}</h2><p>{stageState === "future" ? "完成上一站后解锁" : `${stage.note} · ${stageDone} / ${foods.length}`}</p></div>{stageState === "current" && <b>当前</b>}</header>
         <div className="food-path-track">
-          {stage.foods.map((food, foodIndex) => {
+          {foods.map((food, foodIndex) => {
             const side = pathSides[foodIndex % pathSides.length];
             const nextSide = pathSides[(foodIndex + 1) % pathSides.length];
-            const interactive = food.state === "planned";
+            const foodProgress = progress[food.id];
+            const completed = foodProgress?.status === "completed";
+            const available = food.id === currentFood?.id;
+            const interactive = completed || available;
+            const nodeState = completed ? "recorded" : available ? "available" : "future";
+            const statusLabel = completed ? "徽章已获得" : foodProgress?.status === "paused" ? "已暂停" : foodProgress?.status === "active" ? `观察中 ${foodProgress.completedCheckpoints.length} / 3` : available ? "开始探索" : "待解锁";
             return <div key={food.id} className={cx("food-path-row", side)}>
-              {foodIndex < stage.foods.length - 1 && <svg className="food-path-connector" viewBox="0 0 320 168" preserveAspectRatio="none" aria-hidden="true"><path d={foodConnectorPath(side, nextSide)} /></svg>}
-              <button className={cx("food-path-node", food.state)} disabled={food.state === "future"} onClick={() => interactive && navigate(`/food-map/${food.id}`)} aria-label={`${food.name}，${food.state === "recorded" ? "已有记录" : food.state === "planned" ? "下一种计划尝试" : "尚未探索"}`}>
-                <span className="food-character-slot" data-food-image={food.id}><FoodIllustration foodId={food.id as FoodId} alt={food.name} fallback={<small>{food.fallback}</small>} />{food.state === "recorded" && <i><Check size={11} /></i>}{food.state === "future" && <i><LockKeyhole size={10} /></i>}</span>
+              {foodIndex < foods.length - 1 && <svg className="food-path-connector" viewBox="0 0 320 168" preserveAspectRatio="none" aria-hidden="true"><path d={foodConnectorPath(side, nextSide)} /></svg>}
+              <button className={cx("food-path-node", nodeState, foodProgress?.status === "active" && "in-progress", foodProgress?.status === "paused" && "paused")} disabled={!interactive} onClick={() => interactive && navigate(`/food-map/${food.id}`)} aria-label={`${food.name}，${statusLabel}`}>
+                <span className="food-character-slot" data-food-image={food.id}><FoodIllustration foodId={food.id} alt={food.name} fallback={<small>{food.fallback}</small>} />{completed && <i><Award size={11} /></i>}{!completed && available && <i>{foodProgress?.status === "paused" ? <Pause size={10} /> : <Sparkles size={10} />}</i>}{!available && !completed && <i><LockKeyhole size={10} /></i>}</span>
                 <strong>{food.name}</strong>
-                <small>{food.state === "recorded" ? "已点亮" : food.state === "planned" ? "下一种" : "待探索"}</small>
+                <small>{statusLabel}</small>
               </button>
             </div>;
           })}
         </div>
-      </article>)}
-    </section>
-    <p className="journey-boundary"><Info size={14} />路线按月龄整理记录和计划，不代表食材只能在对应月龄尝试；具体仍以宝宝能力和专业建议为准。</p>
+        </article>;})}
+      </section>
+    </div>
+    <p className="journey-boundary"><Info size={14} />徽章只代表完成了本次尝试和 3—5 天观察记录，不代表医学上已排除过敏。</p>
   </Screen>;
 }
 
 function FoodDetailPage() {
   const navigate = useNavigate();
-  const [added, setAdded] = useState(false);
+  const { food: foodId = "" } = useParams();
+  const food = getFoodJourneyFood(foodId);
+  const progress = useAppStore((state) => state.foodJourneyProgress);
+  const startFoodJourney = useAppStore((state) => state.startFoodJourney);
+  const recordFoodCheckpoint = useAppStore((state) => state.recordFoodCheckpoint);
+  const pauseFoodJourney = useAppStore((state) => state.pauseFoodJourney);
+  const [rewardFood, setRewardFood] = useState<FoodJourneyFood | null>(null);
+  const currentFood = foodJourneyFoods.find((item) => progress[item.id]?.status !== "completed");
+  const foodProgress = progress[foodId];
+  const locked = currentFood?.id !== foodId && foodProgress?.status !== "completed";
+  const completed = foodProgress?.status === "completed";
+  const paused = foodProgress?.status === "paused";
+  const nextCheckpoint = (foodProgress?.completedCheckpoints.length ?? 0) + 1;
+  if (!food) return <NotFound />;
+  const primaryAction = () => {
+    if (!foodProgress) {
+      startFoodJourney(food.id);
+      return;
+    }
+    const didComplete = recordFoodCheckpoint(food.id, nextCheckpoint);
+    if (didComplete) setRewardFood(food);
+  };
   return <Screen className="food-detail-screen collapsible-title-screen"><TopBar title="食材详情" back="/food-map" />
-    <section className="food-detail-hero"><FoodIllustration foodId="salmon" alt="三文鱼" /><div><small>计划尝试</small><h1>三文鱼</h1><p>路线中的下一位食物朋友</p></div></section>
-    <section className="food-detail-card"><header><span>为什么现在安排</span><ShieldCheck size={18} /></header><p>当前路线里的 13 种食物已有记录，这次只新增三文鱼，更容易看清实际接受情况。</p></section>
-    <section className="explore-plan"><div className="week-heading"><div><span>记录事实，不替代判断</span><h2>分 3 次完成一次探索</h2></div></div>{[["01", "准备并制作", "选择宝宝版本，记录实际使用的食材。"], ["02", "记录吃了多少", "完成后记录接受程度和即时情况。"], ["03", "稍后补充观察", "回到记录页补充后续情况；如有异常先停止尝试并寻求专业帮助。"]].map(([id, title, detail]) => <article key={id}><span>{id}</span><div><strong>{title}</strong><p>{detail}</p></div></article>)}</section>
-    <div className="related-recipe"><span><UtensilsCrossed size={19} /></span><div><small>加入后再生成宝宝版本</small><strong>三文鱼南瓜软饭</strong><p>实际用量和质地仍需结合本次记录</p></div></div>
-    <div className="food-detail-actions"><Button full onClick={() => setAdded(true)}>{added ? "已加入本周计划" : "加入本周计划"}</Button><button onClick={() => navigate("/food-map")}>暂不尝试</button></div>
+    <section className={cx("food-detail-hero", locked && "locked")}><FoodIllustration foodId={food.id} alt={food.name} /><div><small>{completed ? "徽章已获得" : paused ? "观察已暂停" : locked ? "尚未解锁" : foodProgress ? `观察进度 ${foodProgress.completedCheckpoints.length} / 3` : "当前可探索"}</small><h1>{food.name}</h1><p>{food.summary}</p></div></section>
+    {locked ? <section className="food-locked-card"><LockKeyhole size={23} /><h2>这一关还没解锁</h2><p>先完成 {currentFood?.name ?? "当前食物"} 的观察记录，再来认识{food.name}。</p><Button full onClick={() => navigate("/food-map")}>回到成长路线</Button></section> : <>
+      <div className="food-fact-grid"><article><span>观察周期</span><strong>3—5 天</strong></article><article><span>关注程度</span><strong className={food.allergenLevel}>{food.allergenLevel === "common" ? "重点关注" : "一般关注"}</strong></article></div>
+      <section className="food-quick-guide"><header><span>吃前看两点</span><UtensilsCrossed size={18} /></header><div><small>怎么准备</small><p>{food.preparation}</p></div><div><small>营养亮点</small><div className="nutrition-tags">{food.nutrition.map((item) => <span key={item}>{item}</span>)}</div></div></section>
+      <section className={cx("food-allergy-card", food.allergenLevel === "common" && "common")}><header><div><h2>{food.allergenLevel === "common" ? "首次少量，单独尝试" : "留意和平时不一样的变化"}</h2></div><ShieldAlert size={20} /></header><p>{food.allergenNote}</p><div className="allergy-sign-chips">{possibleAllergySigns.map((item) => <span key={item}>{item}</span>)}</div><div className="urgent-signs"><ShieldAlert size={15} /><span><strong>立即求助：</strong>{urgentAllergySigns.join("、")}</span></div></section>
+      <section className="food-observation-plan"><div className="week-heading"><div><h2>三步完成探索</h2></div><b>{foodProgress?.completedCheckpoints.length ?? 0} / 3</b></div><div>{foodObservationCheckpoints.map((checkpoint) => { const done = Boolean(foodProgress?.completedCheckpoints.includes(checkpoint.id)); const active = !completed && !paused && checkpoint.id === nextCheckpoint; return <article key={checkpoint.id} className={cx(done && "done", active && "active")}><span>{done ? <Check size={14} /> : checkpoint.id}</span><div><small>{checkpoint.label}</small><strong>{checkpoint.title}</strong>{active && <p>{checkpoint.detail}</p>}</div></article>;})}</div></section>
+      {paused && <section className="food-paused-card" role="alert"><ShieldAlert size={21} /><div><strong>本轮探索已暂停</strong><p>{foodProgress?.reaction === "urgent" ? "已记录紧急征象。请立即寻求急救，不要再次尝试。" : "已记录可疑反应。在获得专业建议前，不继续尝试。"}</p></div></section>}
+      <details className="food-safety-details"><summary><Info size={14} />安全说明与资料来源<ChevronRight size={14} /></summary><div><p>这里记录尝试和观察，不提供过敏诊断或治疗建议。</p><a href="https://www.cdc.gov/infant-toddler-nutrition/foods-and-drinks/when-what-and-how-to-introduce-solid-foods.html" target="_blank" rel="noreferrer">CDC 引入原则</a><a href="https://www.nhs.uk/best-start-in-life/baby/weaning/safe-weaning/food-allergies/" target="_blank" rel="noreferrer">NHS 过敏指引</a></div></details>
+      {!paused && <div className={cx("food-detail-actions", foodProgress && !completed && "has-secondary")}>{!completed && <><small className="food-action-hint">可随时继续记录；实际喂养请按建议周期观察。</small><Button full onClick={primaryAction}>{!foodProgress ? `开始${food.name}探索` : nextCheckpoint === 1 ? "完成首次尝试，继续" : nextCheckpoint === 2 ? "完成继续观察，下一步" : "完成记录，领取徽章"}</Button></>}{foodProgress && !completed && <button className="food-pause-action" onClick={() => pauseFoodJourney(food.id, "possible")}><ShieldAlert size={14} />发现异常，暂停探索</button>}{completed && <div className="earned-badge-inline"><span><FoodIllustration foodId={food.id} alt="" /></span><div><small>已收集</small><strong>{food.name}徽章</strong><p>继续规律提供已耐受的食物</p></div><Award size={20} /></div>}</div>}
+    </>}
+    <AnimatePresence>{rewardFood && <FoodBadgeCelebration food={rewardFood} onClose={() => { setRewardFood(null); navigate("/food-map"); }} />}</AnimatePresence>
   </Screen>;
+}
+
+function FoodBadgeCelebration({ food, onClose }: { food: FoodJourneyFood; onClose: () => void }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    const fireworks = confetti.create(canvasRef.current, { resize: true, useWorker: true, disableForReducedMotion: true });
+    const shared = { colors: ["#FFD35A", "#FFA691", "#8FB99A", "#FFFFFF"], shapes: ["circle", "star"] as confetti.Shape[], zIndex: 102 };
+    void fireworks({ ...shared, particleCount: 72, angle: 62, spread: 64, startVelocity: 48, origin: { x: .05, y: .76 } });
+    void fireworks({ ...shared, particleCount: 72, angle: 118, spread: 64, startVelocity: 48, origin: { x: .95, y: .76 } });
+    window.setTimeout(() => void fireworks({ ...shared, particleCount: 54, spread: 110, startVelocity: 34, origin: { x: .5, y: .38 } }), 180);
+  }, []);
+  return <motion.div className="food-badge-celebration" initial={false} animate={{ opacity: 1 }} exit={{ opacity: 0 }} role="dialog" aria-modal="true" aria-label={`获得${food.name}徽章`}><canvas ref={canvasRef} /><motion.section initial={false} animate={{ opacity: 1, y: 0, scale: 1 }}><span className="badge-rays" aria-hidden="true" /><div className="food-badge-medal"><FoodIllustration foodId={food.id} alt={`${food.name}徽章`} /><i><Award size={18} /></i></div><small>新徽章已收藏</small><h2>{food.name}探索完成</h2><p>已完成尝试和 3—5 天观察记录，下一位食物朋友已解锁。</p><Button full onClick={onClose}>收下徽章，查看下一关</Button><em>徽章不代表医学上已排除过敏</em></motion.section></motion.div>;
 }
 
 function BowlVisual() {
@@ -1090,7 +1152,7 @@ function AnalysisResultPage() {
   const { jobId = "" } = useParams();
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState("");
-  const [view, setView] = useState<"baby" | "video" | "steps">("baby");
+  const [view, setView] = useState<"baby" | "steps">("baby");
   useEffect(() => {
     let cancelled = false;
     getAnalysisResult(jobId).then((value) => { if (!cancelled) setResult(value); }).catch((cause) => { if (!cancelled) setError(cause instanceof Error ? cause.message : "结果读取失败"); });
@@ -1098,51 +1160,34 @@ function AnalysisResultPage() {
   }, [jobId]);
   if (error) return <AnalysisFailure message={error} retry={() => navigate(`/analysis/${jobId}`, { replace: true })} />;
   if (!result) return <Screen className="analysis-screen"><TopBar title="适配结果" back="/home" /><section className="analysis-visual"><div className="analysis-orbit"><div className="analysis-center"><CharacterIllustration intent="inspect" size="hero" /></div><i /><i /><i /></div><h1>正在读取结果</h1><p>马上就好</p></section></Screen>;
-  const baby = result.宝宝版本;
-  const video = result.视频解析;
-  const recipeProfile = video.recipe_profile ?? { food_type: "旧结果未结构化", dominant_texture: "旧结果未结构化", particle_composition: "旧结果未结构化", food_form: "旧结果未结构化", feeding_method: "视频未说明", feeding_posture: "视频未说明", final_portion: "视频未说明" };
-  const recognizedIngredients = video.recognized_ingredients ?? [...new Set(video.facts.actions.flatMap((action) => action.observed_ingredients))].map((name) => ({ name, amount: null, preparation: "请查看对应视频动作", observation: "由旧版视频事实迁移，具体画面依据请查看制作流程" }));
-  const requiredAbilities = video.required_abilities ?? [];
-  const evidence = video.evidence ?? [];
-  const citedEvidenceIds = [...new Set([
-    ...baby.key_judgments.flatMap((item) => item.evidence_ids),
-    ...baby.dimensions.flatMap((item) => item.evidence_ids),
-    ...requiredAbilities.flatMap((item) => item.evidence_ids),
-  ])];
-  const babyName = baby.title.match(/^(.+?)版[：:]/)?.[1] || "宝宝";
-  const fallbackAdjustments = baby.key_judgments.filter((item) => item.status !== "适合").slice(0, 3).map((item) => parentFriendly(item.conclusion));
-  const fallbackConfirmation = baby.key_judgments.find((item) => item.status === "待确认")?.conclusion || "制作和喂食时再看一眼实际质地与宝宝的接受情况，不适应时先停下来调整。";
-  const fallbackConclusionCard = {
-    headline: baby.conclusion_status === "可以直接做" ? `这道辅食挺适合${babyName}，可以按宝宝版来准备` : baby.conclusion_status === "调整后可以做" ? `这道辅食调整一下，就更适合${babyName}了` : baby.conclusion_status === "需要补充信息" ? "再确认几件小事，就能更稳妥地决定" : baby.conclusion_status === "暂不建议" ? "这次先缓一缓，我们换个更合适的做法" : "目前信息还不够，我们先不着急下结论",
-    reassurance: `原视频里的食材和做法有可以保留的地方。${parentFriendly(baby.conclusion)}`,
-    adjustments: fallbackAdjustments.length ? fallbackAdjustments : [parentFriendly(baby.conclusion)],
-    confirmation: parentFriendly(fallbackConfirmation),
-  };
-  const conclusionCard = baby.conclusion_card ? stabilizeConclusionCard(baby, [video.facts, baby.profile_summary, evidence]) : fallbackConclusionCard;
-  const canCook = baby.conclusion_status === "可以直接做" || baby.conclusion_status === "调整后可以做";
+  const plan = getUnifiedAnalysisPlan(result);
+  const evidence = result.视频解析.evidence ?? [];
+  const babyName = plan.verdict.title.match(/^(.+?)版[：:]/)?.[1] || result.宝宝版本.title.match(/^(.+?)版[：:]/)?.[1] || "宝宝";
+  const changes = plan.checks.filter((item) => item.impact !== "none");
+  const preflight = [...new Set([...plan.checks.filter((item) => item.impact === "confirm" || item.impact === "block").map((item) => item.action), ...plan.serving_checks])];
+  const citedEvidenceIds = [...new Set([...plan.checks.flatMap((item) => item.evidence_ids), ...plan.ingredients.flatMap((item) => item.evidence_ids)])];
+  const recipeProfile = plan.source_summary.recipe_profile;
+  const impactLabel = { none: "无需调整", change: "需要调整", confirm: "待确认", block: "先暂停" } as const;
   return <Screen className="result-screen generated-result-screen">
     <TopBar title="适配结果" back="/home" />
-    <section className="generated-result-hero"><CharacterIllustration intent={baby.conclusion_status === "暂不建议" ? "paused" : "confirm"} size="support" /><div><h1>{parentFriendly(baby.title)}</h1><p>{parentFriendly(baby.profile_summary)}</p></div></section>
-    <section className={cx("generated-verdict", baby.conclusion_status === "需要补充信息" && "pending", baby.conclusion_status === "暂不建议" && "blocked")}><span className="generated-verdict-eyebrow">给{babyName}的适配建议</span><h2>{parentFriendly(conclusionCard.headline)}</h2><p>{parentFriendly(conclusionCard.reassurance)}</p><div className="generated-verdict-adjustments">{conclusionCard.adjustments.map((item, index) => <div key={`${item}-${index}`}><CheckCircle2 size={14} /><span>{parentFriendly(item)}</span></div>)}</div><div className="generated-verdict-confirmation"><Info size={14} /><span>{parentFriendly(conclusionCard.confirmation)}</span></div></section>
-    <div className="result-view-tabs generated-tabs" role="tablist" aria-label="分析结果模块"><button role="tab" aria-selected={view === "baby"} className={cx(view === "baby" && "active")} onClick={() => setView("baby")}>宝宝版本</button><button role="tab" aria-selected={view === "video"} className={cx(view === "video" && "active")} onClick={() => setView("video")}>视频解析</button><button role="tab" aria-selected={view === "steps"} className={cx(view === "steps" && "active")} onClick={() => setView("steps")}>陪做步骤</button></div>
-    {view !== "steps" && <KnowledgeLibrary evidence={evidence} citedEvidenceIds={citedEvidenceIds} />}
-    {view === "baby" && <div className="generated-result-panel">
-      <section><header><h2>关键判断</h2></header><div className="generated-judgments">{baby.key_judgments.map((item, index) => <article key={`${item.title}-${index}`}><div className="generated-card-heading"><div className="generated-judgment-meta"><b>{index + 1}</b><span className={cx("generated-status", item.status)}>{item.status}</span></div><EvidenceDetails ids={item.evidence_ids} evidence={evidence} /></div><h3>{judgmentLabels[item.title] || parentFriendly(item.title)}</h3><p>{parentFriendly(item.conclusion)}</p>{item.fact_basis ? <small className="generated-fact-basis">{parentFriendly(item.fact_basis)}</small> : <small className="generated-fact-basis">这条旧结果没有分别保存视频信息和宝宝档案信息</small>}<small>{parentFriendly(item.reason)}</small></article>)}</div></section>
-      <section><header><h2>最终食材方案</h2></header><div className="generated-ingredients">{baby.ingredients.map((item, index) => <article key={`${item.name}-${index}`}><div><strong>{parentFriendly(item.name)}</strong><span>{parentFriendly(item.status)}</span></div>{item.amount && <p>{parentFriendly(item.amount)}</p>}<small>{parentFriendly(item.preparation)}</small></article>)}</div></section>
-      <section><header><h2>调整后做法</h2></header><div className="generated-adapted-flow">{result.陪做步骤.map((step, index) => <article key={step.step_id}><b>{index + 1}</b><div><strong>{parentFriendly(step.title)}</strong><p>{parentFriendly(step.instruction)}</p><small>做到这样就可以：{parentFriendly(step.completion_check)}</small></div></article>)}</div></section>
-      <section className="generated-feeding-check"><header><h2>喂之前再看一眼</h2></header>{baby.feeding_check.map((item, index) => <p key={index}><CheckCircle2 size={14} />{parentFriendly(item)}</p>)}</section>
-    </div>}
-    {view === "video" && <div className="generated-result-panel">
-      <section><header><h2>{parentFriendly(result.视频解析.title)}</h2></header><p className="generated-source-summary">{parentFriendly(result.视频解析.summary)}</p><div className="generated-recipe-profile">{[
-        ["食物类型", recipeProfile.food_type], ["主体质地", recipeProfile.dominant_texture], ["颗粒组成", recipeProfile.particle_composition], ["食物形态", recipeProfile.food_form], ["喂养方式", recipeProfile.feeding_method], ["进食姿势", recipeProfile.feeding_posture], ["成品份量", recipeProfile.final_portion],
-      ].map(([label, value]) => <div key={label}><span>{label}</span><strong>{parentFriendly(value)}</strong></div>)}</div></section>
-      <section><header><h2>识别食材</h2></header><div className="generated-video-ingredients">{recognizedIngredients.map((item, index) => <article key={`${item.name}-${index}`}><strong>{parentFriendly(item.name)}</strong>{item.amount && <span>{parentFriendly(item.amount)}</span>}{item.preparation && !/^(未说明|未知|无)$/.test(item.preparation.trim()) && <p>{parentFriendly(item.preparation)}</p>}</article>)}</div></section>
-      <section><header><h2>六项适配检查</h2></header><div className="generated-dimensions">{baby.dimensions.map((item) => <article key={item.dimension}><div className="generated-card-heading"><strong>{dimensionLabels[item.dimension] || parentFriendly(item.dimension)}</strong><span className={cx("generated-status", item.status)}>{item.status}</span><EvidenceDetails ids={item.evidence_ids} evidence={evidence} /></div><p>{parentFriendly(item.conclusion)}</p>{item.fact_basis ? <small className="generated-fact-basis">{parentFriendly(item.fact_basis)}</small> : <small className="generated-fact-basis">这条旧结果没有分别保存视频信息和宝宝档案信息</small>}{item.reason && <small>{parentFriendly(item.reason)}</small>}</article>)}</div></section>
-      <section><header><h2>宝宝需要具备的能力</h2></header>{requiredAbilities.length ? <div className="generated-abilities">{requiredAbilities.map((item, index) => <article key={`${item.title}-${index}`}><div className="generated-card-heading"><strong>{parentFriendly(item.title)}</strong><span className={cx("generated-status", item.status === "已具备" ? "适合" : "待确认")}>{item.status}</span><EvidenceDetails ids={item.evidence_ids} evidence={evidence} /></div><p>{parentFriendly(item.requirement)}</p><small>{parentFriendly(item.profile_comparison)}</small></article>)}</div> : <p className="generated-section-note">这条旧结果没有单独保存宝宝需要具备的能力。</p>}</section>
-      <p className="generated-disclaimer">本结果用于辅食个体化整理，不提供医疗诊断或治疗方案；存在严重过敏反应或吞咽困难时，请停止进食并及时寻求专业帮助。</p>
-    </div>}
-    {view === "steps" && <div className="generated-result-panel"><section><header><h2>分步骤陪做</h2></header><div className="generated-steps">{result.陪做步骤.map((step, index) => <article key={step.step_id}>{step.image_url ? <img /* eslint-disable-line @next/next/no-img-element */ src={step.image_url} alt={step.keyframe_description || step.title} /> : <div className="generated-frame-placeholder"><CharacterIllustration intent="prepare" size="avatar" /><span>这一步没有合适的视频截图</span></div>}<div><span>第 {index + 1} 步{step.timing ? ` · ${parentFriendly(step.timing)}` : ""}</span><h3>{parentFriendly(step.title)}</h3><p>{parentFriendly(step.instruction)}</p><strong>做到什么算完成？</strong><small>{parentFriendly(step.completion_check)}</small><em>{parentFriendly(step.personal_reminder)}</em><details><summary>查看视频对应位置</summary><p>{parentFriendly(step.mapping_note)}</p>{step.keyframe_description && <p>画面：{parentFriendly(step.keyframe_description)}</p>}</details>{step.quick_actions.length > 0 && <div className="generated-quick-actions">{step.quick_actions.map((item) => <button type="button" key={item}>{parentFriendly(item)}</button>)}</div>}</div></article>)}</div></section></div>}
-    <div className="generated-result-bottom"><Button full onClick={() => canCook ? view === "steps" ? navigate(`/cook/${jobId}/session`) : setView("steps") : navigate("/home")} icon={canCook ? <MessageCircle size={18} /> : <Upload size={18} />}>{canCook ? view === "steps" ? "进入对话陪做" : "查看陪做步骤" : baby.conclusion_status === "需要补充信息" ? "补充档案或更换视频" : "换一个辅食视频"}</Button></div><div className="result-spacer" />
+    <section className="generated-result-hero"><CharacterIllustration intent={plan.verdict.status === "暂不建议" ? "paused" : "confirm"} size="support" /><div><h1>{parentFriendly(plan.verdict.title)}</h1><p>{parentFriendly(plan.verdict.profile_summary)}</p></div></section>
+    <section className={cx("generated-verdict", plan.verdict.status === "需要补充信息" && "pending", plan.verdict.status === "暂不建议" && "blocked")}><span className="generated-verdict-eyebrow">给{babyName}的结论</span><h2>{parentFriendly(plan.verdict.headline)}</h2><p>{parentFriendly(plan.verdict.summary)}</p></section>
+    <div className="result-view-tabs generated-tabs generated-mode-tabs" role="tablist" aria-label="结果查看方式"><button role="tab" aria-selected={view === "baby"} className={cx(view === "baby" && "active")} onClick={() => setView("baby")}>宝宝版本</button><button role="tab" aria-selected={view === "steps"} className={cx(view === "steps" && "active")} onClick={() => setView("steps")}>步骤教程</button></div>
+    <div className="generated-result-panel generated-unified-result">
+      {view === "baby" && <>
+      <section className="generated-source-overview"><header><div><h2>{parentFriendly(plan.source_summary.title)}</h2></div></header><p className="generated-source-summary">{parentFriendly(plan.source_summary.summary)}</p><details><summary>查看成品与喂法信息</summary><div className="generated-recipe-profile">{[["食物类型", recipeProfile.food_type], ["主体质地", recipeProfile.dominant_texture], ["颗粒组成", recipeProfile.particle_composition], ["食物形态", recipeProfile.food_form], ["喂养方式", recipeProfile.feeding_method], ["进食姿势", recipeProfile.feeding_posture], ["成品份量", recipeProfile.final_portion]].map(([label, value]) => <div key={label}><span>{label}</span><strong>{parentFriendly(value)}</strong></div>)}</div></details></section>
+      <section><header><div><h2>关键调整</h2></div></header><div className="generated-change-list">{(changes.length ? changes : plan.checks.slice(0, 1)).map((item) => <article key={item.check_id}><div className="generated-card-heading"><strong>{parentFriendly(item.dimension)}</strong><span className={cx("generated-impact", item.impact)}>{impactLabel[item.impact]}</span><EvidenceDetails ids={item.evidence_ids} evidence={evidence} /></div><div className="generated-change-compare"><p><small>原视频</small>{parentFriendly(item.source_fact)}</p><ChevronRight size={15} /><p><small>{babyName}版</small>{parentFriendly(item.decision)}</p></div><div className="generated-change-action"><CheckCircle2 size={14} /><span>{parentFriendly(item.action)}</span></div></article>)}</div></section>
+      <section><header><div><h2>最终食材</h2></div></header><div className="generated-unified-ingredients">{plan.ingredients.map((item, index) => <article key={`${item.name}-${index}`}><div className="generated-card-heading"><strong>{parentFriendly(item.name)}</strong><span className={cx("generated-ingredient-decision", item.decision)}>{item.decision}</span><EvidenceDetails ids={item.evidence_ids} evidence={evidence} /></div><div><p><small>原视频</small>{parentFriendly([item.source.amount, item.source.preparation].filter(Boolean).join(" · ") || "未说明")}</p><ChevronRight size={14} /><p><small>{babyName}版</small>{parentFriendly([item.baby.amount, item.baby.preparation].filter(Boolean).join(" · ") || "待确认")}</p></div></article>)}</div></section>
+      <section className="generated-preflight"><header><div><h2>开做前确认</h2></div></header>{preflight.map((item, index) => <p key={`${item}-${index}`}><CheckCircle2 size={14} />{parentFriendly(item)}</p>)}</section>
+      <details className="generated-audit"><summary><BookOpen size={16} /><div><strong>查看完整检查与依据</strong><span>8 项检查 · 原视频信息与宝宝调整分开保存</span></div><ChevronRight size={15} /></summary><div>{plan.checks.map((item) => <article key={item.check_id}><div className="generated-card-heading"><strong>{parentFriendly(item.dimension)}</strong><span className={cx("generated-impact", item.impact)}>{impactLabel[item.impact]}</span><EvidenceDetails ids={item.evidence_ids} evidence={evidence} /></div><p>{parentFriendly(item.decision)}</p><small>{parentFriendly(item.baby_context)}</small></article>)}</div></details>
+      <KnowledgeLibrary evidence={evidence} citedEvidenceIds={citedEvidenceIds} />
+      <p className="generated-disclaimer">本结果用于辅食个体化整理，不提供医疗诊断或治疗方案；出现严重过敏反应或吞咽困难时，请停止进食并及时寻求专业帮助。</p>
+      </>}
+      {view === "steps" &&
+      <section><header><div><h2>宝宝版步骤</h2></div></header><div className="generated-steps">{plan.steps.map((step, index) => <article key={step.step_id}>{step.image_url ? <img /* eslint-disable-line @next/next/no-img-element */ src={step.image_url} alt={step.keyframe_description || step.title} /> : <div className="generated-frame-placeholder"><CharacterIllustration intent="prepare" size="avatar" /><span>这一步没有合适的视频截图</span></div>}<div><span>第 {index + 1} 步{step.timing ? ` · ${parentFriendly(step.timing)}` : ""}</span><h3>{parentFriendly(step.title)}</h3><p>{parentFriendly(step.instruction)}</p><strong>做到什么算完成？</strong><small>{parentFriendly(step.completion_check)}</small><em>{parentFriendly(step.personal_reminder)}</em><details><summary>查看视频对应位置</summary><p>{parentFriendly(step.mapping_note)}</p>{step.keyframe_description && <p>画面：{parentFriendly(step.keyframe_description)}</p>}</details></div></article>)}</div></section>
+      }
+    </div>
+    <div className="generated-result-bottom"><Button full onClick={() => navigate(`/cook/${jobId}/session`)} icon={<MessageCircle size={18} />}>带着一起做</Button></div><div className="result-spacer" />
   </Screen>;
 }
 
@@ -1562,23 +1607,11 @@ function InspirationCookSession({ idea }: { idea: (typeof homeInspirationIdeas)[
   const [completed, setCompleted] = useState<number[]>([]);
   const [messages, setMessages] = useState<Array<{ id: string; role: "user" | "assistant"; text: string; step: number }>>([]);
   const [input, setInput] = useState("");
-  const [voiceMode, setVoiceMode] = useState(false);
   const [recording, setRecording] = useState(false);
   const timelineRef = useRef<HTMLDivElement>(null);
   const step = idea.steps[stepIndex];
-  const speak = (text: string) => void childVoiceTts.speak(text);
+  const voice = useCookingVoice(`${step.title}。${step.instruction}。完成状态：${step.check}`);
   useEffect(() => { timelineRef.current?.scrollTo({ top: timelineRef.current.scrollHeight, behavior: "smooth" }); }, [stepIndex, messages.length]);
-  useEffect(() => {
-    if (voiceMode) speak(`${step.title}。${step.instruction}。完成状态：${step.check}`);
-    // Only read the newly active action.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stepIndex]);
-  const toggleVoice = () => {
-    const next = !voiceMode;
-    setVoiceMode(next);
-    if (next) speak(`${step.title}。${step.instruction}。完成状态：${step.check}`);
-    else childVoiceTts.cancel();
-  };
   const ask = (raw = input) => {
     const question = raw.trim();
     if (!question) return;
@@ -1589,11 +1622,10 @@ function InspirationCookSession({ idea }: { idea: (typeof homeInspirationIdeas)[
         : `先不要急着进入下一步。请继续处理，直到达到这个状态：${step.check}`;
     setMessages((current) => [...current, { id: `${Date.now()}-u`, role: "user", text: question, step: stepIndex }, { id: `${Date.now()}-a`, role: "assistant", text: answer, step: stepIndex }]);
     setInput("");
-    if (voiceMode) window.setTimeout(() => speak(answer), 80);
+    if (voice.voiceMode) window.setTimeout(() => void voice.speak(answer), 80);
   };
   const finishStep = () => {
     setCompleted((current) => [...current, stepIndex]);
-    setMessages([]);
     if (stepIndex === idea.steps.length - 1) {
       childVoiceTts.cancel();
       navigate(`/feedback/${idea.id}/now`);
@@ -1602,10 +1634,11 @@ function InspirationCookSession({ idea }: { idea: (typeof homeInspirationIdeas)[
     setStepIndex((current) => current + 1);
   };
   return <Screen className="cook-session-screen inspiration-cook-session">
-    <header className="session-header"><IconButton className="back-button" label="退出陪做" onClick={() => navigate("/home", { state: { transition: "back" } })}><ArrowLeft size={20} /></IconButton><div className="session-progress"><span style={{ width: `${((completed.length + .35) / idea.steps.length) * 100}%` }} /></div><button className={cx("voice-mode", voiceMode && "active")} onClick={toggleVoice}><Volume2 size={16} />{voiceMode ? "宝宝音色中" : "开启语音"}</button></header>
-    <div className="session-context"><span>{idea.title}</span><b>{stepIndex + 1} / {idea.steps.length}</b></div>
-    <div className="conversation-timeline" ref={timelineRef} aria-live="polite"><AssistantMessage><p>我们开始做{idea.title}。准备食材：{idea.ingredients}。接下来每次只完成当前行动，你可以随时语音或打字问我。</p></AssistantMessage>{completed.map((index) => <div className="conversation-pair completed" key={index}><AssistantMessage intent="confirm"><article className="conversation-step completed"><div className="conversation-step-head"><span>{idea.steps[index].timing}</span><CheckCircle2 size={16} /></div><h2>{idea.steps[index].title}</h2></article></AssistantMessage><UserMessage>已经达到这个状态</UserMessage></div>)}<AssistantMessage intent={resolveCookingIntent(step.actionKind)}><article className="conversation-step"><div className="conversation-step-head"><span>当前行动 {stepIndex + 1} · {step.timing}</span></div><h2>{step.title}</h2><p>{step.instruction}</p><div className="inline-check"><strong>做到什么算完成？</strong><span>{step.check}</span></div></article></AssistantMessage>{messages.filter((message) => message.step === stepIndex).map((message) => message.role === "user" ? <UserMessage key={message.id}>{message.text}</UserMessage> : <AssistantMessage key={message.id}><p>{message.text}</p></AssistantMessage>)}</div>
-    <div className="session-dock tomato-conversation-dock"><p className="session-boundary"><Info size={12} />实际熟制状态请以现场检查为准</p><div className="quick-action-heading"><strong>直接操作</strong><span>也可以在下方语音或打字提问</span></div><div className="session-suggestions"><button className="primary-suggestion" onClick={finishStep}><CheckCircle2 size={14} />{stepIndex === idea.steps.length - 1 ? "完成并记录反馈" : "已经达到完成状态"}</button><button onClick={() => ask("这一步为什么要这样做？")}><MessageCircle size={14} />为什么这样做</button></div><div className="session-composer"><IconButton label="语音输入" onClick={() => { setRecording(true); window.setTimeout(() => { setRecording(false); setInput("这一步做到什么程度算完成？"); }, 700); }}><Mic size={19} /></IconButton><input value={recording ? "正在听…" : input} disabled={recording} placeholder={voiceMode ? "直接说，或在这里输入" : "问问当前这一步"} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") ask(); }} /><IconButton className="composer-send" label="发送" disabled={!input.trim()} onClick={() => ask()}><Send size={18} /></IconButton></div></div>
+    <header className="session-header"><IconButton className="back-button" label="退出陪做" onClick={() => navigate("/home", { state: { transition: "back" } })}><ArrowLeft size={20} /></IconButton><div className="session-progress"><span style={{ width: `${((completed.length + .35) / idea.steps.length) * 100}%` }} /></div><button className={cx("voice-mode", voice.voiceMode && "active")} onClick={() => void voice.toggleVoice()}><Volume2 size={16} />{voice.label}</button></header>
+    <div className="session-context"><span>{idea.title}</span></div>
+    <VoiceStatus engine={voice.voiceEngine} error={voice.voiceError} />
+    <div className="conversation-timeline" ref={timelineRef} aria-live="polite"><AssistantMessage><p>我们开始做{idea.title}。准备食材：{idea.ingredients}。接下来每次只完成当前行动，你可以随时语音或打字问我。</p></AssistantMessage>{completed.map((index) => <div className="conversation-pair completed" key={index}><AssistantMessage intent="confirm"><article className="conversation-step completed"><div className="conversation-step-head"><span>{idea.steps[index].timing}</span><CheckCircle2 size={16} /></div><h2>{idea.steps[index].title}</h2></article></AssistantMessage>{messages.filter((message) => message.step === index).map((message) => message.role === "user" ? <UserMessage key={message.id}>{message.text}</UserMessage> : <AssistantMessage key={message.id}><p>{message.text}</p></AssistantMessage>)}<UserMessage>已经达到这个状态</UserMessage></div>)}<AssistantMessage intent={resolveCookingIntent(step.actionKind)}><article className="conversation-step"><div className="conversation-step-head"><span>当前行动 {stepIndex + 1} · {step.timing}</span></div><h2>{step.title}</h2><p>{step.instruction}</p><div className="inline-check"><strong>做到什么算完成？</strong><span>{step.check}</span></div></article></AssistantMessage>{messages.filter((message) => message.step === stepIndex).map((message) => message.role === "user" ? <UserMessage key={message.id}>{message.text}</UserMessage> : <AssistantMessage key={message.id}><p>{message.text}</p></AssistantMessage>)}</div>
+    <div className="session-dock"><div className="session-suggestions"><button className="primary-suggestion" onClick={finishStep}><CheckCircle2 size={14} />{stepIndex === idea.steps.length - 1 ? "完成并记录反馈" : "已经达到这个状态"}</button><button onClick={() => ask("这一步为什么要这样做？")}><MessageCircle size={14} />为什么这样做</button></div><div className="session-composer"><IconButton label="语音输入" onClick={() => { setRecording(true); window.setTimeout(() => { setRecording(false); setInput("这一步做到什么程度算完成？"); }, 700); }}><Mic size={19} /></IconButton><input value={recording ? "正在听…" : input} disabled={recording} placeholder={voice.voiceMode ? "直接说，或在这里输入…" : "说说现在遇到的情况…"} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") ask(); }} /><IconButton label="发送" disabled={!input.trim()} onClick={() => ask()}><Send size={19} /></IconButton></div><p className="session-boundary">实际熟制状态请以现场检查为准</p></div>
   </Screen>;
 }
 
@@ -1613,35 +1646,55 @@ function GeneratedCookSession({ jobId }: { jobId: string }) {
   const navigate = useNavigate();
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [stepIndex, setStepIndex] = useState(0);
-  const [messages, setMessages] = useState<Array<{ id: string; role: "user" | "assistant"; text: string }>>([]);
+  const [prepared, setPrepared] = useState(false);
+  const [completed, setCompleted] = useState<number[]>([]);
+  const [messages, setMessages] = useState<Array<{ id: string; role: "user" | "assistant"; text: string; step: number }>>([]);
   const [input, setInput] = useState("");
-  const [voiceMode, setVoiceMode] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [riskInterrupted, setRiskInterrupted] = useState(false);
+  const [timerEndAt, setTimerEndAt] = useState<number | null>(null);
+  const timelineRef = useRef<HTMLDivElement>(null);
   useEffect(() => { getAnalysisResult(jobId).then(setResult).catch(() => navigate(`/result/analysis/${jobId}`, { replace: true })); }, [jobId, navigate]);
-  if (!result) return <Screen className="analysis-screen"><TopBar title="分步骤陪做" back={`/result/analysis/${jobId}`} /><section className="analysis-visual"><div className="analysis-orbit"><div className="analysis-center"><CharacterIllustration intent="prepare" size="hero" /></div><i /><i /><i /></div><h1>正在准备陪做步骤</h1></section></Screen>;
-  const steps = result.陪做步骤;
-  const step = steps[Math.min(stepIndex, steps.length - 1)];
-  const speak = (text: string) => void childVoiceTts.speak(text);
-  const toggleVoice = () => { const next = !voiceMode; setVoiceMode(next); if (next) speak(`${step.title}。${step.instruction}。完成标准：${step.completion_check}`); else childVoiceTts.cancel(); };
+  const steps = result?.陪做步骤 ?? [];
+  const step = steps[Math.min(stepIndex, Math.max(steps.length - 1, 0))];
+  const timerDuration = step ? cookingStepTimerSeconds(step) : null;
+  const announcement = !prepared
+    ? "开始前，我们先确认食材是否齐全。缺什么可以直接告诉我。"
+    : step ? `${step.title}。${step.instruction}。完成标准：${step.completion_check}` : "";
+  const voice = useCookingVoice(announcement, riskInterrupted || !result);
+  useEffect(() => { timelineRef.current?.scrollTo({ top: timelineRef.current.scrollHeight, behavior: "smooth" }); }, [completed.length, messages.length, prepared, riskInterrupted, stepIndex]);
+  if (!result || !step) return <Screen className="analysis-screen"><TopBar title="分步骤陪做" back={`/result/analysis/${jobId}`} /><section className="analysis-visual"><div className="analysis-orbit"><div className="analysis-center"><CharacterIllustration intent="prepare" size="hero" /></div><i /><i /><i /></div><h1>正在准备陪做步骤</h1></section></Screen>;
   const ask = (raw = input) => {
     const question = raw.trim();
     if (!question) return;
-    const known = step.common_questions.find((item) => question.includes(item.question) || item.question.includes(question));
-    const answer = known?.answer || `先以当前完成标准为准：${step.completion_check}。如果现场状态不确定，先暂停，不要急着进入下一步。`;
-    setMessages((items) => [...items, { id: `${Date.now()}-u`, role: "user", text: question }, { id: `${Date.now()}-a`, role: "assistant", text: answer }]);
+    const risk = /红|肿|吐|喘|呼吸|异常/.test(question);
+    const known = prepared ? step.common_questions.find((item) => question.includes(item.question) || item.question.includes(question)) : undefined;
+    const answer = risk
+      ? "普通陪做已暂停。请先停止喂食并观察宝宝；如果症状明显、快速加重或影响呼吸，请立即寻求专业帮助。"
+      : !prepared
+        ? "请直接告诉我缺少哪种食材。在确认替换或移除方案前，我们先不进入制作。"
+        : known?.answer || `先以当前完成标准为准：${step.completion_check}。如果现场状态不确定，先暂停，不要急着进入下一步。`;
+    const messageStep = prepared ? stepIndex : -1;
+    setMessages((items) => [...items, { id: `${Date.now()}-u`, role: "user", text: question, step: messageStep }, { id: `${Date.now()}-a`, role: "assistant", text: answer, step: messageStep }]);
     setInput("");
-    if (voiceMode) speak(answer);
+    if (risk) { setRiskInterrupted(true); setTimerEndAt(null); }
+    if (voice.voiceMode && !risk) void voice.speak(answer);
   };
   const next = () => {
     if (stepIndex >= steps.length - 1) { childVoiceTts.cancel(); navigate(`/feedback/${jobId}/now`); return; }
-    setMessages([]); setStepIndex((value) => value + 1);
-    if (voiceMode) window.setTimeout(() => { const following = steps[stepIndex + 1]; speak(`${following.title}。${following.instruction}`); }, 80);
+    setTimerEndAt(null);
+    setCompleted((items) => [...items, stepIndex]);
+    setStepIndex((value) => value + 1);
   };
+  const quickActions = step.quick_actions
+    .filter((item) => !/已经|完成|异常/.test(item))
+    .slice(0, 2);
   return <Screen className="cook-session-screen generated-cook-session">
-    <header className="session-header"><IconButton className="back-button" label="退出陪做" onClick={() => navigate(`/result/analysis/${jobId}`)}><ArrowLeft size={20} /></IconButton><div className="session-progress"><span style={{ width: `${((stepIndex + .35) / steps.length) * 100}%` }} /></div><button className={cx("voice-mode", voiceMode && "active")} onClick={toggleVoice}><Volume2 size={16} />{voiceMode ? "宝宝音色中" : "开启语音"}</button></header>
-    <div className="session-context"><span>{result.宝宝版本.title}</span><b>{stepIndex + 1} / {steps.length}</b></div>
-    <div className="conversation-timeline" aria-live="polite"><AssistantMessage><p>我们按宝宝版本来做。每次只完成当前动作；原视频没说清楚的地方会保留“待确认”。</p></AssistantMessage><AssistantMessage intent="prepare"><article className="conversation-step">{step.image_url && <img /* eslint-disable-line @next/next/no-img-element */ className="generated-cook-frame" src={step.image_url} alt={step.keyframe_description || step.title} />}<div className="conversation-step-head"><span>当前行动 {stepIndex + 1}{step.timing ? ` · ${step.timing}` : ""}</span></div><h2>{step.title}</h2><p>{step.instruction}</p><div className="inline-check"><strong>做到什么算完成？</strong><span>{step.completion_check}</span></div><div className="inline-tip"><Info size={15} /><span>{step.personal_reminder}</span></div></article></AssistantMessage>{messages.map((message) => message.role === "user" ? <UserMessage key={message.id}>{message.text}</UserMessage> : <AssistantMessage key={message.id}><p>{message.text}</p></AssistantMessage>)}</div>
-    <div className="session-dock tomato-conversation-dock"><div className="session-suggestions">{step.quick_actions.map((item) => <button type="button" key={item} onClick={() => ask(item)}>{item}</button>)}</div><div className="session-composer"><IconButton label="语音提问" className={cx(recording && "recording")} onClick={() => { setRecording(true); window.setTimeout(() => { setRecording(false); setInput("这一步做到什么程度算完成？"); }, 700); }}><Mic size={18} /></IconButton><input value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") ask(); }} placeholder="问问当前这一步…" /><IconButton label="发送" onClick={() => ask()}><Send size={18} /></IconButton></div><Button full onClick={next}>{stepIndex === steps.length - 1 ? "完成制作" : "已经达到这个状态"}</Button><p className="session-boundary">实际熟制状态请以现场检查为准</p></div>
+    <header className="session-header"><IconButton className="back-button" label="退出陪做" onClick={() => navigate(`/result/analysis/${jobId}`)}><ArrowLeft size={20} /></IconButton><div className="session-progress"><span style={{ width: `${prepared ? ((completed.length + .35) / steps.length) * 100 : 5}%` }} /></div><button className={cx("voice-mode", voice.voiceMode && "active")} onClick={() => void voice.toggleVoice()}><Volume2 size={16} />{voice.label}</button></header>
+    <div className="session-context"><span>{result.宝宝版本.title}</span></div>
+    <VoiceStatus engine={voice.voiceEngine} error={voice.voiceError} />
+    <div className="conversation-timeline" ref={timelineRef} aria-live="polite"><AssistantMessage><p>我们按宝宝版本来做。开始前先确认食材，之后每次只说当前行动；有变化随时问我。</p></AssistantMessage><AssistantMessage><div className="ingredient-message"><strong>这些食材都准备好了吗？</strong><ul>{result.宝宝版本.ingredients.map((ingredient) => <li key={ingredient.name}>{ingredient.name}{ingredient.amount ? ` ${ingredient.amount}` : ""}{ingredient.preparation ? ` · ${ingredient.preparation}` : ""}</li>)}</ul></div></AssistantMessage>{messages.filter((message) => message.step === -1).map((message) => message.role === "user" ? <UserMessage key={message.id}>{message.text}</UserMessage> : <AssistantMessage key={message.id}><p>{message.text}</p></AssistantMessage>)}{prepared && <><UserMessage>都准备好了</UserMessage><AssistantMessage><p>好，食材确认完成。接下来我每次只告诉你当前要做的事。</p></AssistantMessage></>}{prepared && completed.map((index) => { const done = steps[index]; return <div className="conversation-pair completed generated-completed-step" key={done.step_id}><AssistantMessage intent="confirm"><article className="conversation-step completed">{done.image_url && <img /* eslint-disable-line @next/next/no-img-element */ className="generated-cook-frame" src={done.image_url} alt={done.keyframe_description || done.title} />}<div className="conversation-step-head"><span>已完成 · {done.timing || `行动 ${index + 1}`}</span><CheckCircle2 size={16} /></div><h2>{done.title}</h2><p>{done.instruction}</p><div className="inline-check"><strong>完成状态</strong><span>{done.completion_check}</span></div><div className="inline-tip"><Info size={15} /><span>{done.personal_reminder}</span></div></article></AssistantMessage>{messages.filter((message) => message.step === index).map((message) => message.role === "user" ? <UserMessage key={message.id}>{message.text}</UserMessage> : <AssistantMessage key={message.id}><p>{message.text}</p></AssistantMessage>)}<UserMessage>已经达到这个状态</UserMessage></div>; })}{prepared && !riskInterrupted && <AssistantMessage intent="prepare"><article className="conversation-step">{step.image_url && <img /* eslint-disable-line @next/next/no-img-element */ className="generated-cook-frame" src={step.image_url} alt={step.keyframe_description || step.title} />}<div className="conversation-step-head"><span>当前行动 {stepIndex + 1}{step.timing ? ` · ${step.timing}` : ""}</span></div><h2>{step.title}</h2><p>{step.instruction}</p><div className="inline-check"><strong>做到什么算完成？</strong><span>{step.completion_check}</span></div><div className="inline-tip"><Info size={15} /><span>{step.personal_reminder}</span></div>{timerDuration && <CookingTimer duration={timerDuration} endAt={timerEndAt} setEndAt={setTimerEndAt} />}</article></AssistantMessage>}{prepared && messages.filter((message) => message.step === stepIndex).map((message) => message.role === "user" ? <UserMessage key={message.id}>{message.text}</UserMessage> : <AssistantMessage key={message.id}><p>{message.text}</p></AssistantMessage>)}</div>
+    <div className="session-dock"><div key={riskInterrupted ? "risk" : prepared ? `step-${stepIndex}` : "prepare"} className={cx("session-suggestions", prepared && "prepared")}>{riskInterrupted ? <button className="risk-suggestion" onClick={() => navigate(`/feedback/${jobId}/now`)}>停止陪做，记录异常</button> : !prepared ? <><button className="primary-suggestion" onClick={() => setPrepared(true)}>都准备好了</button><button className="session-secondary-action" onClick={() => setInput("有食材没准备好") }>有食材没准备好</button></> : <><button className="primary-suggestion" onClick={next}><CheckCircle2 size={16} />{stepIndex === steps.length - 1 ? "完成并记录反馈" : "已经达到这个状态"}</button>{quickActions.map((item) => <button className="session-quick-action" type="button" key={item} onClick={() => ask(item)}>{item}</button>)}</>}</div><div className={cx("session-composer", recording && "recording")}><IconButton label="语音输入" onClick={() => { setRecording(true); window.setTimeout(() => { setRecording(false); setInput(prepared ? "这一步做到什么程度算完成？" : "有食材没准备好"); }, 700); }}><Mic size={19} /></IconButton><input value={recording ? "正在听…" : input} disabled={recording || riskInterrupted} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") ask(); }} placeholder={voice.voiceMode ? "直接说，或在这里输入…" : "说说现在遇到的情况…"} /><IconButton label="发送" disabled={!input.trim() || riskInterrupted} onClick={() => ask()}><Send size={19} /></IconButton></div></div>
   </Screen>;
 }
 
@@ -1682,29 +1735,15 @@ function TomatoRiceConversationPage() {
   const [completed, setCompleted] = useState<number[]>([]);
   const [messages, setMessages] = useState<TomatoCookMessage[]>([]);
   const [input, setInput] = useState("");
-  const [voiceMode, setVoiceMode] = useState(false);
   const [recording, setRecording] = useState(false);
   const [timerEndAt, setTimerEndAt] = useState<number | null>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
   const phase = tomatoRiceAnalysis.phases[stepIndex];
   const progress = ((completed.length + .35) / tomatoRiceAnalysis.phases.length) * 100;
-  const speak = (text: string) => {
-    void childVoiceTts.speak(text);
-  };
+  const voice = useCookingVoice(`${phase.title}。${phase.action}。完成状态：${phase.check}`);
   useEffect(() => {
     timelineRef.current?.scrollTo({ top: timelineRef.current.scrollHeight, behavior: "smooth" });
   }, [stepIndex, messages.length]);
-  useEffect(() => {
-    if (voiceMode) speak(`${phase.title}。${phase.action}。完成状态：${phase.check}`);
-    // Only read the newly active action.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stepIndex]);
-  const toggleVoice = () => {
-    const next = !voiceMode;
-    setVoiceMode(next);
-    if (next) speak(`${phase.title}。${phase.action}。完成状态：${phase.check}`);
-    else childVoiceTts.cancel();
-  };
   const answerQuestion = (raw = input) => {
     const value = raw.trim();
     if (!value) return;
@@ -1718,7 +1757,7 @@ function TomatoRiceConversationPage() {
           : `我记下了。当前先完成“${phase.title}”，判断标准是：${phase.check}。`;
     setMessages((current) => [...current, userMessage, { id: `${Date.now()}-assistant`, role: "assistant", text: answer, step: stepIndex }]);
     setInput("");
-    if (voiceMode) window.setTimeout(() => speak(answer), 80);
+    if (voice.voiceMode) window.setTimeout(() => void voice.speak(answer), 80);
   };
   const simulateVoice = () => {
     setRecording(true);
@@ -1740,9 +1779,10 @@ function TomatoRiceConversationPage() {
     <header className="session-header">
       <IconButton className="back-button" label="退出陪做" onClick={() => navigate("/result/adapted", { state: { transition: "back" } })}><ArrowLeft size={20} /></IconButton>
       <div className="session-progress"><span style={{ width: `${progress}%` }} /></div>
-      <button className={cx("voice-mode", voiceMode && "active")} onClick={toggleVoice}><Volume2 size={16} />{voiceMode ? childVoiceTts.isNeuralConfigured ? "宝宝音色中" : "柔和语音中" : childVoiceTts.isNeuralConfigured ? "开启宝宝音色" : "开启柔和语音"}</button>
+      <button className={cx("voice-mode", voice.voiceMode && "active")} onClick={() => void voice.toggleVoice()}><Volume2 size={16} />{voice.label}</button>
     </header>
     <div className="session-context"><span>{tomatoRiceAnalysis.title}</span></div>
+    <VoiceStatus engine={voice.voiceEngine} error={voice.voiceError} />
     <div className="conversation-timeline" ref={timelineRef} aria-live="polite">
       <AssistantMessage><p>我们按乐乐版来做。接下来每次只说当前行动；你可以直接打字或用语音问我。</p></AssistantMessage>
       {completed.map((number) => {
@@ -1756,7 +1796,7 @@ function TomatoRiceConversationPage() {
       <p className="session-boundary"><Info size={12} />实际熟制状态请以现场检查为准</p>
       <div className="quick-action-heading"><strong>直接操作</strong><span>也可以在下方语音或打字提问</span></div>
       <div className="session-suggestions"><button className="primary-suggestion" onClick={finishStep}><CheckCircle2 size={14} />{stepIndex === tomatoRiceAnalysis.phases.length - 1 ? "完成并记录反馈" : "已经达到完成状态"}</button><button onClick={() => answerQuestion("这一步为什么要这样做？")}><MessageCircle size={14} />为什么这样做</button>{stepIndex === 4 && <button onClick={() => answerQuestion("米粒还是有点硬")}><Timer size={14} />米粒还硬</button>}</div>
-      <div className={cx("session-composer", recording && "recording")}><IconButton label="语音输入" onClick={simulateVoice}><Mic size={19} /></IconButton><input value={recording ? "正在听…" : input} disabled={recording} placeholder={voiceMode ? "直接说，或在这里输入" : "问问当前这一步"} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => event.key === "Enter" && answerQuestion()} /><IconButton className="composer-send" label="发送" disabled={!input.trim()} onClick={() => answerQuestion()}><Send size={18} /></IconButton></div>
+      <div className={cx("session-composer", recording && "recording")}><IconButton label="语音输入" onClick={simulateVoice}><Mic size={19} /></IconButton><input value={recording ? "正在听…" : input} disabled={recording} placeholder={voice.voiceMode ? "直接说，或在这里输入" : "问问当前这一步"} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => event.key === "Enter" && answerQuestion()} /><IconButton className="composer-send" label="发送" disabled={!input.trim()} onClick={() => answerQuestion()}><Send size={18} /></IconButton></div>
     </div>
   </Screen>;
 }
@@ -1793,27 +1833,18 @@ function ShrimpCookSessionPage() {
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
   const [recording, setRecording] = useState(false);
-  const [voiceMode, setVoiceMode] = useState(false);
   const timelineRef = useRef<HTMLDivElement>(null);
   const gateway = useMemo(() => createAiGateway(), []);
-  const speak = (text: string) => {
-    void childVoiceTts.speak(text);
-  };
+  const voice = useCookingVoice(cookPrepared
+    ? `${step.title}。${step.instruction}。完成状态：${step.check}`
+    : "开始前，我们先确认食材是否齐全。你可以直接说出缺少的食材。", riskInterrupted);
   useEffect(() => {
     timelineRef.current?.scrollTo({ top: timelineRef.current.scrollHeight, behavior: "smooth" });
   }, [cookPrepared, cookConversation.length, stepNumber, thinking, riskInterrupted]);
-  useEffect(() => {
-    if (!voiceMode || riskInterrupted) return;
-    speak(cookPrepared
-      ? `${step.title}。${step.instruction}。完成状态：${step.check}`
-      : "开始前，我们先确认食材是否齐全。你可以直接说出缺少的食材。");
-    // Voice output follows the active cooking action only.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stepNumber, voiceMode, cookPrepared, riskInterrupted]);
   const addMessage = (role: "user" | "assistant", text: string) => appendCookMessage({ id: `${Date.now()}-${Math.random()}`, role, text, phase: cookPrepared ? "cook" : "prep", step: stepNumber });
   const answerWith = (text: string) => {
     addMessage("assistant", text);
-    if (voiceMode) speak(text);
+    if (voice.voiceMode) void voice.speak(text);
   };
   const sendMessage = async (message = input) => {
     const value = message.trim();
@@ -1859,18 +1890,6 @@ function ShrimpCookSessionPage() {
     setRecording(true);
     window.setTimeout(() => { setRecording(false); setInput("家里没有西蓝花，可以换成胡萝卜吗？"); }, 1100);
   };
-  const toggleVoiceMode = async () => {
-    const next = !voiceMode;
-    setVoiceMode(next);
-    if (!next) {
-      childVoiceTts.cancel();
-      return;
-    }
-    try {
-      const nav = navigator as Navigator & { wakeLock?: { request: (type: "screen") => Promise<unknown> } };
-      if (nav.wakeLock) await nav.wakeLock.request("screen");
-    } catch { /* Voice mode remains available without Wake Lock. */ }
-  };
   const confirmPrepared = () => {
     setCookPrepared(true);
   };
@@ -1886,9 +1905,10 @@ function ShrimpCookSessionPage() {
         return canGoBack ? navigate(-1) : navigate("/result/adapted", { replace: true, state: { transition: "back" } });
       }}><ArrowLeft size={20} /></IconButton>
       <div className="session-progress"><span style={{ width: `${progress}%` }} /></div>
-      <button className={cx("voice-mode", voiceMode && "active")} onClick={toggleVoiceMode}><Volume2 size={16} />{voiceMode ? childVoiceTts.isNeuralConfigured ? "宝宝音色中" : "柔和语音中" : childVoiceTts.isNeuralConfigured ? "开启宝宝音色" : "开启柔和语音"}</button>
+      <button className={cx("voice-mode", voice.voiceMode && "active")} onClick={() => void voice.toggleVoice()}><Volume2 size={16} />{voice.label}</button>
     </header>
     <div className="session-context"><span>宝宝虾滑面</span></div>
+    <VoiceStatus engine={voice.voiceEngine} error={voice.voiceError} />
     <div className="conversation-timeline" ref={timelineRef} aria-live="polite">
       <AssistantMessage><p>我们一起把满满的宝宝虾滑面做好。开始前先确认一下食材，缺什么直接告诉我，我会同步调整后面的做法。</p></AssistantMessage>
       <AssistantMessage>
@@ -1918,7 +1938,7 @@ function ShrimpCookSessionPage() {
       </div>
       <div className={cx("session-composer", recording && "recording")}>
         <IconButton label="语音输入" onClick={simulateVoice}><Mic size={19} /></IconButton>
-        <input value={recording ? "正在听…" : input} disabled={recording || riskInterrupted} placeholder={voiceMode ? "直接说，或在这里输入…" : "说说现在遇到的情况…"} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendMessage()} />
+        <input value={recording ? "正在听…" : input} disabled={recording || riskInterrupted} placeholder={voice.voiceMode ? "直接说，或在这里输入…" : "说说现在遇到的情况…"} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendMessage()} />
         <IconButton label="发送" disabled={!input.trim() || riskInterrupted} onClick={() => sendMessage()}><Send size={19} /></IconButton>
       </div>
       <p className="session-boundary">实际熟制状态请以现场检查为准</p>

@@ -84,7 +84,7 @@ const dimensionSchema = z.object({
   evidence_ids: z.array(z.string().min(1)).min(1).max(2),
 });
 
-const videoRecipeProfileSchema = z.object({
+export const videoRecipeProfileSchema = z.object({
   food_type: z.string().min(1),
   dominant_texture: z.string().min(1),
   particle_composition: z.string().min(1),
@@ -94,7 +94,7 @@ const videoRecipeProfileSchema = z.object({
   final_portion: z.string().min(1),
 });
 
-const videoIngredientSchema = z.object({
+export const videoIngredientSchema = z.object({
   name: z.string().min(1),
   amount: z.string().nullable(),
   preparation: z.string().min(1),
@@ -145,6 +145,7 @@ export const cookingStepSchema = z.object({
   keyframe_description: z.string().nullable(),
   image_url: z.string().nullable().optional().default(null),
   timing: z.string().nullable(),
+  timer_seconds: z.number().int().min(10).max(14_400).nullable().optional().default(null),
   action: z.string().min(1),
   instruction: z.string().min(1),
   completion_check: z.string().min(1),
@@ -154,7 +155,58 @@ export const cookingStepSchema = z.object({
   common_questions: z.array(z.object({ question: z.string(), answer: z.string() })).max(4),
 });
 
+export const unifiedCheckIdSchema = z.enum([
+  "ingredients_allergy",
+  "new_food",
+  "seasoning",
+  "cooking",
+  "texture",
+  "size_shape",
+  "eating_ability",
+  "feeding",
+]);
+
+export const unifiedAnalysisPlanSchema = z.object({
+  verdict: z.object({
+    title: z.string().min(1),
+    status: conclusionStatusSchema,
+    headline: z.string().min(6).max(40),
+    summary: z.string().min(12).max(180),
+    profile_summary: z.string().min(1),
+  }),
+  source_summary: z.object({
+    title: z.string().min(1),
+    summary: z.string().min(1),
+    recipe_profile: videoRecipeProfileSchema,
+  }),
+  checks: z.array(z.object({
+    check_id: unifiedCheckIdSchema,
+    dimension: z.enum(["食材与过敏", "新食材引入", "调味", "熟制", "质地", "大小形状", "进食能力", "喂养方式"]),
+    impact: z.enum(["none", "change", "confirm", "block"]),
+    source_fact: z.string().min(1),
+    baby_context: z.string().min(1),
+    decision: z.string().min(1),
+    action: z.string().min(1),
+    evidence_ids: z.array(z.string().min(1)).min(1).max(2),
+  })).length(8).superRefine((items, context) => {
+    const expected = ["ingredients_allergy", "new_food", "seasoning", "cooking", "texture", "size_shape", "eating_ability", "feeding"];
+    if (items.some((item, index) => item.check_id !== expected[index])) context.addIssue({ code: "custom", message: `检查项必须依次为：${expected.join("、")}` });
+  }),
+  ingredients: z.array(z.object({
+    name: z.string().min(1),
+    source: z.object({ amount: z.string().nullable(), preparation: z.string().min(1), observation: z.string().min(1) }),
+    baby: z.object({ amount: z.string().nullable(), preparation: z.string().min(1) }),
+    decision: z.enum(["保留", "调整", "移除", "待确认"]),
+    evidence_ids: z.array(z.string().min(1)).min(1).max(2),
+  })),
+  steps: z.array(cookingStepSchema).min(1),
+  serving_checks: z.array(z.string().min(1)).min(1).max(6),
+});
+
+export const unifiedAnalysisOutputSchema = z.object({ 适配方案: unifiedAnalysisPlanSchema });
+
 export const analysisResultSchema = z.object({
+  统一方案: unifiedAnalysisPlanSchema.optional(),
   宝宝版本: z.object({
     title: z.string().min(1),
     conclusion: z.string().min(1),
@@ -200,6 +252,8 @@ export type VideoFactPackage = z.infer<typeof videoFactPackageSchema>;
 export type VideoFactAction = z.infer<typeof videoFactActionSchema>;
 export type AnalysisBabyProfile = z.infer<typeof analysisBabyProfileSchema>;
 export type KnowledgeRule = z.infer<typeof knowledgeRuleSchema>;
+export type UnifiedAnalysisPlan = z.infer<typeof unifiedAnalysisPlanSchema>;
+export type UnifiedAnalysisOutput = z.infer<typeof unifiedAnalysisOutputSchema>;
 export type AnalysisResult = z.infer<typeof analysisResultSchema>;
 export type AnalysisCookingStep = z.infer<typeof cookingStepSchema>;
 export type AnalysisJobStatus = z.infer<typeof analysisJobStatusSchema>;

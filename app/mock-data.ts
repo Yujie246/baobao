@@ -18,7 +18,7 @@ export const defaultProfile: BabyProfile = {
   feedingNote: "",
   avoidStatus: null,
   avoidFoods: [],
-  triedFoods: ["鸡蛋", "面粉", "胡萝卜", "西蓝花"],
+  triedFoods: [],
   completed: false,
 };
 
