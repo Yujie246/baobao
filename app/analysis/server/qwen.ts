@@ -10,6 +10,8 @@ import { readVideo } from "./storage";
 
 const baseURL = process.env.DASHSCOPE_BASE_URL || "https://dashscope.aliyuncs.com/compatible-mode/v1";
 const model = process.env.QWEN_MODEL || "qwen3.7-plus";
+const repairBaseURL = process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com";
+const repairModel = process.env.DEEPSEEK_AGENT_MODEL || "deepseek-v4-flash";
 const VIDEO_TIMEOUT_MS = 180_000;
 const PLAN_TIMEOUT_MS = 120_000;
 const REPAIR_TIMEOUT_MS = 45_000;
@@ -18,6 +20,30 @@ function client() {
   const apiKey = process.env.DASHSCOPE_API_KEY;
   if (!apiKey) throw new Error("服务端未配置 DASHSCOPE_API_KEY");
   return new OpenAI({ apiKey, baseURL, timeout: VIDEO_TIMEOUT_MS, maxRetries: 0 });
+}
+
+function deepseekRepairClient() {
+  const apiKey = process.env.DEEPSEEK_API_KEY;
+  if (!apiKey) return null;
+  return new OpenAI({ apiKey, baseURL: repairBaseURL, timeout: REPAIR_TIMEOUT_MS, maxRetries: 0 });
+}
+
+async function repairWithDeepSeek(content: string) {
+  const repairClient = deepseekRepairClient();
+  if (!repairClient) throw new Error("服务端未配置 DEEPSEEK_API_KEY，无法执行第二层结构修复");
+  try {
+    const response = await repairClient.chat.completions.create({
+      model: repairModel,
+      messages: [{ role: "user", content }],
+      temperature: 0,
+      response_format: { type: "json_object" },
+    }, { timeout: REPAIR_TIMEOUT_MS });
+    const repaired = response.choices[0]?.message?.content;
+    if (!repaired) throw new Error("DeepSeek 没有返回修复结果");
+    return repaired;
+  } catch (error) {
+    throw modelError(error, "repair");
+  }
 }
 
 async function prompt(name: string) {
@@ -83,14 +109,21 @@ export async function personalizeWithQwen(facts: VideoFactPackage, profile: Anal
     const plan = parseUnifiedAnalysisOutput(normalizeUnifiedAnalysisEvidence(raw, evidenceIndex), facts, evidenceIndex);
     return analysisResultFromUnified(plan, facts, profile, evidence);
   } catch (error) {
+    let qwenRepaired = "";
     try {
-      const repaired = await complete([{ role: "user", content: `下面是一份统一辅食适配方案 JSON。只修复校验错误和缺失字段，其他内容保持不变；顶层只能是“适配方案”，不得添加或回传输入 facts；不得改写 action_id 和时间戳。只输出完整合法 JSON。\n允许的 evidence_ids：${evidence.map((item) => item.evidence_id).join("、")}\n校验错误：${String(error)}\n原结果：${raw}` }], { timeoutMs: REPAIR_TIMEOUT_MS, stage: "repair" });
-      const plan = parseUnifiedAnalysisOutput(normalizeUnifiedAnalysisEvidence(repaired, evidenceIndex), facts, evidenceIndex);
+      qwenRepaired = await complete([{ role: "user", content: `下面是一份统一辅食适配方案 JSON。只修复校验错误和缺失字段，其他内容保持不变；顶层只能是“适配方案”，不得添加或回传输入 facts；不得改写 action_id 和时间戳。只输出完整合法 JSON。\n允许的 evidence_ids：${evidence.map((item) => item.evidence_id).join("、")}\n校验错误：${String(error)}\n原结果：${raw}` }], { timeoutMs: REPAIR_TIMEOUT_MS, stage: "repair" });
+      const plan = parseUnifiedAnalysisOutput(normalizeUnifiedAnalysisEvidence(qwenRepaired, evidenceIndex), facts, evidenceIndex);
       return analysisResultFromUnified(plan, facts, profile, evidence);
     } catch (repairError) {
-      const repairMessage = repairError instanceof Error ? repairError.message : "模型结果修复失败";
-      const validationMessage = error instanceof Error ? error.message : String(error);
-      throw new Error(`${repairMessage} 原始结果问题：${validationMessage}`);
+      try {
+        const repaired = await repairWithDeepSeek(`你是 JSON 结构修复器。下面的辅食适配方案内容已经生成完成，但连续两次没有通过程序校验。只修复 JSON 结构、字段类型、枚举值、数组数量与顺序；不得新增事实，不得改写 source_action_id 和三个时间戳。顶层只能是“适配方案”，只输出完整合法 JSON。\n允许的 evidence_ids：${evidence.map((item) => item.evidence_id).join("、")}\n首次校验错误：${String(error)}\n二次校验错误：${String(repairError)}\n待修复结果：${qwenRepaired || raw}`);
+        const plan = parseUnifiedAnalysisOutput(normalizeUnifiedAnalysisEvidence(repaired, evidenceIndex), facts, evidenceIndex);
+        return analysisResultFromUnified(plan, facts, profile, evidence);
+      } catch (fallbackError) {
+        const repairMessage = fallbackError instanceof Error ? fallbackError.message : "模型结果修复失败";
+        const validationMessage = error instanceof Error ? error.message : String(error);
+        throw new Error(`${repairMessage} 原始结果问题：${validationMessage}`);
+      }
     }
   }
 }

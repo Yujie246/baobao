@@ -87,6 +87,7 @@ import { getUnifiedAnalysisPlan } from "./analysis/unified";
 import { CharacterIllustration, resolveCookingIntent, resolveResultIntent, type CharacterIntent } from "./character-illustrations";
 import { FoodIllustration, type FoodId } from "./food-illustrations";
 import { FoodMapScenery } from "./food-map-scenery";
+import { DouyinFeedPage } from "./douyin-feed";
 import {
   foodJourneyFoods,
   foodJourneyStages,
@@ -858,6 +859,11 @@ function HomePage() {
           <img className="home-dashboard-decoration" src="/illustrations/ip/v1/explore-160.webp" alt="" aria-hidden="true" />
         </button>
       </section>
+      <button type="button" className="home-feed-entry" onClick={() => navigate("/douyin")}>
+        <span className="home-feed-entry-icon"><Play size={18} fill="currentColor" /></span>
+        <span><small>沉浸式辅食视频</small><strong>刷视频，点雪花让 AI 分析</strong></span>
+        <ChevronRight size={18} />
+      </button>
       <section className="home-primary-flow" aria-label="内容导入">
         <div className="home-section-heading home-import-heading"><div><h2>导入辅食视频</h2></div></div>
         <form className="paste-card home-import-card" onSubmit={submit}>
@@ -1356,6 +1362,8 @@ function AnalysisFailure({ message = "链接可能已失效、需要登录，或
 
 function AnalysisResultPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const resultBack = (location.state as { back?: string } | null)?.back || "/home";
   const { jobId = "" } = useParams();
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState("");
@@ -1366,7 +1374,7 @@ function AnalysisResultPage() {
     return () => { cancelled = true; };
   }, [jobId]);
   if (error) return <AnalysisFailure message={error} retry={() => navigate(`/analysis/${jobId}`, { replace: true })} />;
-  if (!result) return <Screen className="analysis-screen"><TopBar title="适配结果" back="/home" /><section className="analysis-visual"><div className="analysis-orbit"><div className="analysis-center"><CharacterIllustration intent="inspect" size="hero" /></div><i /><i /><i /></div><h1>正在读取结果</h1><p>马上就好</p></section></Screen>;
+  if (!result) return <Screen className="analysis-screen"><TopBar title="适配结果" back={resultBack} /><section className="analysis-visual"><div className="analysis-orbit"><div className="analysis-center"><CharacterIllustration intent="inspect" size="hero" /></div><i /><i /><i /></div><h1>正在读取结果</h1><p>马上就好</p></section></Screen>;
   const plan = getUnifiedAnalysisPlan(result);
   const evidence = result.视频解析.evidence ?? [];
   const babyName = plan.verdict.title.match(/^(.+?)版[：:]/)?.[1] || result.宝宝版本.title.match(/^(.+?)版[：:]/)?.[1] || "宝宝";
@@ -1376,7 +1384,7 @@ function AnalysisResultPage() {
   const recipeProfile = plan.source_summary.recipe_profile;
   const impactLabel = { none: "无需调整", change: "需要调整", confirm: "待确认", block: "先暂停" } as const;
   return <Screen className="result-screen generated-result-screen">
-    <TopBar title="适配结果" back="/home" />
+    <TopBar title="适配结果" back={resultBack} />
     <section className="generated-result-hero"><CharacterIllustration intent={plan.verdict.status === "暂不建议" ? "paused" : "confirm"} size="support" /><div><h1>{parentFriendly(plan.verdict.title)}</h1><p>{parentFriendly(plan.verdict.profile_summary)}</p></div></section>
     <section className={cx("generated-verdict", plan.verdict.status === "需要补充信息" && "pending", plan.verdict.status === "暂不建议" && "blocked")}><span className="generated-verdict-eyebrow">给{babyName}的结论</span><h2>{parentFriendly(plan.verdict.headline)}</h2><p>{parentFriendly(plan.verdict.summary)}</p></section>
     <div className="result-view-tabs generated-tabs generated-mode-tabs" role="tablist" aria-label="结果查看方式"><button role="tab" aria-selected={view === "baby"} className={cx(view === "baby" && "active")} onClick={() => setView("baby")}>宝宝版本</button><button role="tab" aria-selected={view === "steps"} className={cx(view === "steps" && "active")} onClick={() => setView("steps")}>步骤教程</button></div>
@@ -2412,6 +2420,7 @@ function AppRoutes() {
               <Route path="/onboarding/avoid" element={<OnboardingAvoid />} />
               <Route path="/onboarding/stage" element={<OnboardingStage />} />
               <Route path="/home" element={<HomePage />} />
+              <Route path="/douyin" element={<DouyinFeedPage />} />
               <Route path="/agent" element={<BabyAgentPage />} />
               <Route path="/plan" element={<PlanSetupPage />} />
               <Route path="/plan/week" element={<WeeklyPlanPage />} />

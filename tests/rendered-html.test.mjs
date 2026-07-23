@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import test from "node:test";
 
 async function render(path = "/") {
@@ -26,10 +26,33 @@ test("首页能由生产 Worker 正常渲染", async () => {
 });
 
 test("浏览器直接刷新深层路由不会返回 404", async () => {
-  for (const path of ["/home", "/agent", "/plan", "/plan/week", "/plan/meal/pumpkin-soft-rice/videos", "/food-map", "/food-map/shrimp", "/result/adapted", "/cook/shrimp-noodle-demo/session", "/cook/shrimp-noodle-demo/step/3", "/baby/foods"]) {
+  for (const path of ["/home", "/douyin", "/agent", "/plan", "/plan/week", "/plan/meal/pumpkin-soft-rice/videos", "/food-map", "/food-map/shrimp", "/result/adapted", "/cook/shrimp-noodle-demo/session", "/cook/shrimp-noodle-demo/step/3", "/baby/foods"]) {
     const response = await render(path);
     assert.equal(response.status, 200, path);
   }
+});
+
+test("六视频沉浸流具备有声播放、Mock 分流和真实 AI 兜底", async () => {
+  const [feed, catalog, qwen] = await Promise.all([
+    readFile(new URL("../app/douyin-feed.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/plan-video-catalog.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/analysis/server/qwen.ts", import.meta.url), "utf8"),
+  ]);
+  assert.equal((feed.match(/\/feed-videos\/[0-9]{2}-[^"']+\.mp4/g) ?? []).length, 6);
+  assert.match(feed, /className="douyin-scroller"/);
+  assert.match(feed, /video\.muted = !soundEnabled/);
+  assert.match(feed, /createCatalogAnalysisJob\(video\.id, profile\)/);
+  assert.match(feed, /宝宝版本/);
+  assert.match(feed, /步骤教程/);
+  assert.match(feed, /查看完整排版与全部依据/);
+  assert.equal((catalog.match(/mockFixtureId:/g) ?? []).length, 1);
+  assert.match(catalog, /tomato-pork-greens-rice[\s\S]+mock-test-video-1/);
+  assert.match(qwen, /repairWithDeepSeek/);
+  assert.match(qwen, /DEEPSEEK_API_KEY/);
+  for (const name of [
+    "01-tomato-pork-greens-rice.mp4", "02-pumpkin-beef-rice.mp4", "03-tomato-potato-beef-rice.mp4",
+    "04-black-sesame-egg-custard.mp4", "05-spinach-vegetable-egg-custard.mp4", "06-potato-apple-cake.mp4",
+  ]) assert.ok((await stat(new URL(`../public/feed-videos/${name}`, import.meta.url))).size > 1_000_000, name);
 });
 
 test("实现包含完整页面闭环和统一 Mock 边界", async () => {
